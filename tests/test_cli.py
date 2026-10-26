@@ -345,3 +345,17 @@ def test_key_spelling_invariance(tmp_path):
     assert proc.returncode == 1
     assert rep["findings"] == base["findings"]
     assert rep["coverage"]["counters"]["events_with_warnings"] == 1
+
+
+def test_alert_cap_degrades_coverage(tmp_path, monkeypatch, capsys):
+    """Case 43: when a rule hits the alert cap, the run is incomplete (exit 4) and the
+    suppressed episodes are counted."""
+    import functools
+    monkeypatch.setattr(cli, "run_rules", functools.partial(rules.run_rules, cap=1))
+    out = tmp_path / "r.json"
+    assert run_main(monkeypatch, "analyze", SAMPLES / "attacks.jsonl", "--report", out) == 4
+    rep = json.loads(out.read_text(encoding="utf-8"))
+    assert "alert_cap_reached:AW-001" in rep["coverage"]["reasons"]
+    assert rep["coverage"]["rules"]["AW-001"]["alerts_suppressed"] == 1
+    assert rep["summary"]["AW-001"] == 1
+    assert "alert cap reached" in capsys.readouterr().out

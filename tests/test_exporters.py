@@ -46,4 +46,4 @@ def test_csv_from_cli(tmp_path):
 
 def test_normalized_jsonl_format():
     data = normalized_jsonl([{"b": 1, "a": "ａ"}])
-    assert data == b'{"a":"\uff41","b":1}\n'
+    assert data == b'{"a":"\\uff41","b":1}\n'
