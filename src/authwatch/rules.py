@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 
 from authwatch.errors import ConfigError
 from authwatch.events import Event, select
+from authwatch.redact import NoRedaction
 from authwatch.timeparse import iso_utc
 from authwatch.window import (ALERT_CAP, SWEEP_EVERY, CappedCounter, Episode,
                               detect_fail_then_success, run_count_metric, run_distinct_metric)
@@ -95,11 +96,6 @@ def alert_id(rule: str, subject: str, first_seen: str, params: dict) -> str:
     """First 16 hex chars of SHA-256 over a canonical JSON list (no delimiter collisions)."""
     blob = json.dumps([rule, subject, first_seen, params], separators=(",", ":"), sort_keys=True)
     return hashlib.sha256(blob.encode()).hexdigest()[:16]
-
-
-class _NoRedaction:
-    def display(self, user_key: str | None) -> str:
-        return "<none>" if user_key is None else user_key
 
 
 @dataclass
@@ -249,7 +245,7 @@ def _detect(rule_id: str, usable: list[Event], params: Params, sweep_every: int,
 def run_rules(events: Sequence[Event], params: Params, enabled: Sequence[str], redactor=None, *,
               sweep_every: int = SWEEP_EVERY, cap: int = ALERT_CAP) -> list[RuleRun]:
     """Run each enabled rule over the analyzed events (any order; each rule sorts its input)."""
-    redactor = redactor or _NoRedaction()
+    redactor = redactor or NoRedaction()
     runs = []
     for rule_id in sorted(enabled):
         spec = RULES[rule_id]

@@ -22,8 +22,9 @@ from authwatch.models import EVENT, INVALID, IRRELEVANT, UNSUPPORTED
 from authwatch.outputs import check_input, check_output_path, write_atomic
 from authwatch.reader import SAMPLE_SIZE, InputDigest, check_whole_input, read_lines
 from authwatch.render import err_console, render_summary, safe_display
+from authwatch.redact import NoRedaction, from_environment
 from authwatch.reporter import build_report, to_json_bytes
-from authwatch.rules import RULE_IDS, Params, run_rules
+from authwatch.rules import RULE_IDS, Params, parse_rules, run_rules
 from authwatch.timeparse import parse_duration
 
 app = typer.Typer(pretty_exceptions_enable=False, add_completion=False, no_args_is_help=True,
@@ -152,22 +153,28 @@ def analyze(
     spray_window: Annotated[str, typer.Option("--spray-window", help="Window for AW-003.")] = "600s",
     lookback: Annotated[str, typer.Option("--lookback",
                                           help="Failure lookback before a success (AW-004).")] = "900s",
+    rules: Annotated[Optional[str], typer.Option("--rules",
+                                                 help="Comma-separated rule ids, e.g. AW-001,AW-004.",
+                                                 show_default="all")] = None,
     report: Annotated[Optional[Path], typer.Option("--report", help="Write the JSON report here.",
                                                    show_default=False)] = None,
     force_report: Annotated[bool, typer.Option("--force-report",
                                                help="Allow overwriting an existing non-report file.")] = False,
     fmt: Annotated[OutputFormat, typer.Option("--format",
                                               help="text summary, or the JSON report on stdout.")] = OutputFormat.text,
+    redact_usernames: Annotated[bool, typer.Option("--redact-usernames",
+                                                   help="Replace usernames in all output with keyed tokens.")] = False,
 ) -> int:
     started = _now()
     params = Params(fail_threshold=fail_threshold, fail_window_s=parse_duration(fail_window),
                     spray_threshold=spray_threshold, spray_window_s=parse_duration(spray_window),
                     lookback_s=parse_duration(lookback))
     params.validate()
-    enabled = list(RULE_IDS)
+    enabled = parse_rules(rules) if rules is not None else list(RULE_IDS)
     check_input(input_path)
     if report is not None:
         check_output_path(report, input_path, [], probe_report=True, force=force_report)
+    redactor = from_environment(os.environ) if redact_usernames else NoRedaction()
 
     ing = ingest(input_path, JsonlAdapter())
     counters = ing.counters
@@ -177,7 +184,7 @@ def analyze(
     for e in conflicts:
         ing.errors.add("DUPLICATE_CONFLICT", e.line, "duplicate_conflict")
     counters.events_analyzed = len(analyzed)
-    runs = run_rules(analyzed, params, enabled)
+    runs = run_rules(analyzed, params, enabled, redactor)
     status, result, complete, reasons = derive(counters, runs, len(analyzed))
 
     parameters = {
@@ -185,7 +192,7 @@ def analyze(
         "fail_threshold": params.fail_threshold, "fail_window_s": params.fail_window_s,
         "spray_threshold": params.spray_threshold, "spray_window_s": params.spray_window_s,
         "lookback_s": params.lookback_s,
-        "redaction": None,
+        "redaction": redactor.describe(),
         "input_format": "jsonl", "assume_year": None, "assume_tz": None,
     }
     input_info = {"label": input_path.name, "format": "jsonl",
