@@ -217,3 +217,65 @@ def run_count_metric(usable: Sequence[Event], key_fn: Callable[[Event], Hashable
     Returns (episodes, suppressed episode count).
     """
     return _run_window(usable, key_fn, None, threshold, window_us, sweep_every, cap, stats)
+
+
+def run_distinct_metric(usable: Sequence[Event], key_fn: Callable[[Event], Hashable],
+                        aux_fn: Callable[[Event], Hashable], threshold: int, window_us: int, *,
+                        sweep_every: int = SWEEP_EVERY, cap: int = ALERT_CAP,
+                        stats: dict | None = None) -> tuple[list[Episode], int]:
+    """Episodes where the number of distinct ``aux_fn`` values per key in the window reaches
+    ``threshold`` (AW-003: distinct accounts per source IP). ``count`` stays the number of
+    events in the episode; ``peak`` is the peak number of distinct values."""
+    return _run_window(usable, key_fn, aux_fn, threshold, window_us, sweep_every, cap, stats)
+
+
+def detect_fail_then_success(usable: Sequence[Event], threshold: int, lookback_us: int, *,
+                             sweep_every: int = SWEEP_EVERY, cap: int = ALERT_CAP,
+                             stats: dict | None = None) -> tuple[list[Episode], int]:
+    """AW-004: a success preceded by >= ``threshold`` failures for the same account within
+    ``(t - lookback, t]`` (errata E8).
+
+    ``usable`` holds failures and successes sorted by the global key, so failures come
+    before a success at an equal timestamp. Failures that produced an alert are consumed;
+    successes that do not alert leave the failures in place.
+    """
+    fails: OrderedDict[Hashable, deque[Event]] = OrderedDict()
+    sink = _Sink(cap)
+    max_keys = 0
+    for n, e in enumerate(usable, 1):
+        cutoff = e.ts_us - lookback_us
+        dq = fails.get(e.user)
+        if e.outcome == "failure":
+            if dq is None:
+                dq = fails[e.user] = deque()
+            else:
+                fails.move_to_end(e.user)
+            while dq and dq[0].ts_us <= cutoff:
+                dq.popleft()
+            dq.append(e)
+        elif dq:
+            while dq and dq[0].ts_us <= cutoff:
+                dq.popleft()
+            if len(dq) >= threshold:
+                ep = Episode(e.user)
+                for f in dq:
+                    ep.add(f)
+                ep.peak = ep.count
+                ep.last_us = e.ts_us
+                ep.success = e
+                ep.ip_changed = None if e.ip is None else e.ip not in {f.ip for f in dq}
+                sink.add(ep)
+                del fails[e.user]                   # consumed
+        if len(fails) > max_keys:
+            max_keys = len(fails)
+        if sweep_every and n % sweep_every == 0:
+            horizon = e.ts_us - lookback_us
+            while fails:
+                u0, dq0 = next(iter(fails.items()))
+                if dq0 and dq0[-1].ts_us > horizon:
+                    break
+                del fails[u0]
+    if stats is not None:
+        stats["max_keys"] = max_keys
+        stats["keys_at_end"] = len(fails)
+    return sink.result()

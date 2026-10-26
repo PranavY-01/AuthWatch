@@ -183,3 +183,81 @@ def test_single_key_flood_bounded_evidence():
     lines, truncated = eps[0].lines()
     assert truncated and len(lines) == 50
     assert len(eps[0].users.counts) == 1
+
+
+@pytest.mark.parametrize("sweep_every", [4096, 1, 0], ids=["default-sweep", "sweep-1", "no-sweep"])
+def test_distinct_metric_matches_oracle(sweep_every):
+    """The distinct-accounts metric (AW-003) matches the oracle on 3 000 seeded streams with
+    sweeping at its default, at 1 and disabled."""
+    rng = random.Random(4)
+    mismatches = []
+    for i in range(STREAMS):
+        events, threshold, window = random_stream(rng)
+        want = oracle(events, threshold, window, distinct=True)
+        got = implementation(events, threshold, window, sweep_every, distinct=True)
+        if want != got:
+            mismatches.append(i)
+    assert mismatches == []
+
+
+def test_distinct_metric_one_episode_per_burst():
+    """AW-003 emits one episode per sustained burst, not one hit per event."""
+    from authwatch.window import run_distinct_metric
+    events = [ev(i, key="ip", user=f"user{i % 12}", ip="ip", order=i) for i in range(40)]
+    eps, _ = run_distinct_metric(events, lambda e: e.ip, lambda e: e.user, 10, 600)
+    assert len(eps) == 1 and eps[0].count == 40 and eps[0].peak == 12
+    one_account = [ev(i, key="ip", user="same", ip="ip", order=i) for i in range(40)]
+    assert run_distinct_metric(one_account, lambda e: e.ip, lambda e: e.user, 10, 600)[0] == []
+
+
+# ------------------------------------------------------------- AW-004 oracle (Spec §12.3)
+def oracle_aw004(events, threshold, lookback):
+    """For each success, recount unconsumed earlier failures of that account in (t - L, t]."""
+    ordered = sorted(events, key=SORT_KEY)
+    consumed, out = set(), []
+    for i, e in enumerate(ordered):
+        if e.outcome != "success":
+            continue
+        fails = [j for j in range(i) if ordered[j].outcome == "failure"
+                 and ordered[j].user == e.user and j not in consumed
+                 and ordered[j].ts_us > e.ts_us - lookback]
+        if len(fails) >= threshold:
+            consumed.update(fails)
+            out.append((e.line, tuple(ordered[j].line for j in fails)))
+    return sorted(out)
+
+
+def aw004_impl(events, threshold, lookback, sweep_every):
+    from authwatch.window import detect_fail_then_success
+    eps, _ = detect_fail_then_success(sorted(events, key=SORT_KEY), threshold, lookback,
+                                      sweep_every=sweep_every)
+    return sorted((ep.success.line, tuple(ep.lines()[0])) for ep in eps)
+
+
+@pytest.mark.parametrize("sweep_every", [4096, 1, 0], ids=["default-sweep", "sweep-1", "no-sweep"])
+def test_aw004_matches_oracle(sweep_every):
+    """AW-004 matches its oracle (consume-on-alert, failures before success at equal time) on
+    3 000 seeded streams, with and without sweeping."""
+    rng = random.Random(1110)
+    mismatches = []
+    for i in range(STREAMS):
+        n = rng.randint(0, 50)
+        times = [rng.randint(0, 300) for _ in range(n)]
+        if rng.random() < 0.5:
+            times = [t - t % 10 for t in times]
+        events = [ev(t, key=f"u{rng.randrange(2)}", ip=f"ip{rng.randrange(3)}",
+                     outcome="success" if rng.random() < 0.25 else "failure", order=j)
+                  for j, t in enumerate(times)]
+        threshold, lookback = rng.randint(2, 5), rng.choice((10, 60, 300))
+        if oracle_aw004(events, threshold, lookback) != aw004_impl(events, threshold, lookback,
+                                                                   sweep_every):
+            mismatches.append(i)
+    assert mismatches == []
+
+
+def test_aw004_failure_before_success_at_equal_time():
+    from authwatch.window import detect_fail_then_success
+    events = [ev(10, key="u", outcome="success", order=0)] + \
+             [ev(10, key="u", order=i) for i in range(1, 6)]
+    eps, _ = detect_fail_then_success(sorted(events, key=SORT_KEY), 5, 900)
+    assert len(eps) == 1 and eps[0].count == 5

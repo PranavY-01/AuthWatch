@@ -97,3 +97,67 @@ def test_failures_only_count():
     recs = burst(4, source_ip="192.0.2.1") + [record(timestamp=ts(45), outcome="success",
                                                      source_ip="192.0.2.1")]
     assert run_rules(events_from(recs), Params(), ["AW-001"])[0].alerts == []
+
+
+ALL = ["AW-001", "AW-002", "AW-003", "AW-004"]
+
+
+def test_aw001_and_aw003_both_fire_for_one_ip():
+    """Case 51: a spray from one IP fires AW-001 by volume and AW-003 by distinct accounts."""
+    recs = [record(timestamp=ts(i * 10), username=f"user{i:02d}", source_ip="192.0.2.99")
+            for i in range(12)]
+    runs = {r.rule_id: r for r in run_rules(events_from(recs), Params(), ALL)}
+    assert [a.subject for a in runs["AW-001"].alerts] == ["ip:192.0.2.99"]
+    assert [a.subject for a in runs["AW-003"].alerts] == ["ip:192.0.2.99"]
+    d = runs["AW-003"].alerts[0].finding["details"]
+    assert (d["count"], d["peak_in_window"], d["threshold"], d["window_seconds"]) == (12, 12, 10, 600)
+    assert d["attack"] == ["T1110.003"]
+    assert d["description"].startswith("192.0.2.99 failed against 12 distinct accounts")
+    assert runs["AW-002"].alerts == []
+
+
+def aw004(recs):
+    runs = {r.rule_id: r for r in run_rules(events_from(recs), Params(), ["AW-004"])}
+    return runs["AW-004"].alerts
+
+
+def test_aw004_ip_changed_flag():
+    """Case 52: a success from the same IP -> ip_changed false; from a new IP -> true."""
+    fails = burst(5, source_ip="203.0.113.50")
+    same = aw004(fails + [record(timestamp=ts(60), outcome="success", source_ip="203.0.113.50")])
+    new = aw004(fails + [record(timestamp=ts(60), outcome="success", source_ip="198.51.100.7")])
+    none = aw004(fails + [record(timestamp=ts(60), outcome="success", source_ip=None)])
+    assert same[0].finding["details"]["evidence"]["ip_changed"] is False
+    d = new[0].finding["details"]
+    assert d["evidence"]["ip_changed"] is True and d["severity"] == "HIGH"
+    assert d["evidence"]["success_line"] == 6 and d["evidence"]["success_ip"] == "198.51.100.7"
+    assert d["description"].endswith("success came from a source IP not seen in the failures.")
+    assert (d["first_seen"], d["last_seen"], d["window_seconds"]) == (ts(0), ts(60), 900)
+    nd = none[0].finding["details"]
+    assert nd["evidence"]["ip_changed"] is None and nd["evidence"]["success_ip"] is None
+    assert nd["description"].endswith("an unknown source IP.")
+
+
+def test_aw004_failures_consumed():
+    """Case 53: a second success right after an alerting one does not alert again."""
+    recs = burst(5) + [record(timestamp=ts(60), outcome="success"),
+                       record(timestamp=ts(61), outcome="success")]
+    assert len(aw004(recs)) == 1
+
+
+def test_aw004_non_alerting_success_does_not_clear():
+    recs = burst(3) + [record(timestamp=ts(35), outcome="success")] + burst(2, start=40) + \
+        [record(timestamp=ts(70), outcome="success")]
+    alerts = aw004(recs)
+    assert len(alerts) == 1 and alerts[0].finding["details"]["count"] == 5
+
+
+def test_aw004_cross_ip_failures_count():
+    recs = [record(timestamp=ts(i), source_ip=f"203.0.113.{i + 1}") for i in range(5)]
+    recs.append(record(timestamp=ts(10), outcome="success", source_ip="203.0.113.1"))
+    assert aw004(recs)[0].finding["details"]["evidence"]["ip_changed"] is False
+
+
+def test_aw004_lookback_boundary():
+    recs = burst(5, step=100) + [record(timestamp=ts(400 + 900), outcome="success")]
+    assert aw004(recs) == []   # the failure at 400 is exactly 900 s old: outside

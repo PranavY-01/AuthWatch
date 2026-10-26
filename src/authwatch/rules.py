@@ -9,7 +9,8 @@ from dataclasses import dataclass, field
 from authwatch.errors import ConfigError
 from authwatch.events import Event, select
 from authwatch.timeparse import iso_utc
-from authwatch.window import ALERT_CAP, SWEEP_EVERY, CappedCounter, Episode, run_count_metric
+from authwatch.window import (ALERT_CAP, SWEEP_EVERY, CappedCounter, Episode,
+                              detect_fail_then_success, run_count_metric, run_distinct_metric)
 
 US = 1_000_000
 SEVERITY_RANK = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
@@ -20,11 +21,14 @@ WINDOW_MIN_S, WINDOW_MAX_S = 1, 7 * 86400
 LOOKBACK_MAX_S = 30 * 86400
 
 FAILURES = frozenset({"failure", "unknown"})
+ALL_OUTCOMES = frozenset({"failure", "success", "unknown"})
 
 _CAVEAT_SHARED_IP = ("Shared addresses (NAT, proxies, VPN exits) can make many users look like one "
                      "source; an IP address does not identify a person.")
 _CAVEAT_ACCOUNT = ("Stale saved passwords and service retry loops produce the same pattern; check "
                    "whether the sources are expected.")
+_CAVEAT_SUCCESS = ("A user who finally remembers the password looks the same; check whether the "
+                   "success came from a new source.")
 
 
 @dataclass(frozen=True)
@@ -44,6 +48,10 @@ RULES: dict[str, RuleSpec] = {
                        FAILURES, True, False, _CAVEAT_SHARED_IP),
     "AW-002": RuleSpec("AW-002", "Repeated failures against one account", "MEDIUM",
                        ("T1110.001",), FAILURES, False, True, _CAVEAT_ACCOUNT),
+    "AW-003": RuleSpec("AW-003", "One source IP failing against many accounts", "MEDIUM",
+                       ("T1110.003",), FAILURES, True, True, _CAVEAT_SHARED_IP),
+    "AW-004": RuleSpec("AW-004", "Success after repeated failures on the same account", "HIGH",
+                       ("T1110", "T1078"), ALL_OUTCOMES, False, True, _CAVEAT_SUCCESS),
 }
 RULE_IDS = tuple(sorted(RULES))
 
@@ -226,6 +234,15 @@ def _detect(rule_id: str, usable: list[Event], params: Params, sweep_every: int,
         eps, sup = run_count_metric(usable, _user, params.fail_threshold,
                                     params.fail_window_s * US, sweep_every=sweep_every, cap=cap)
         return eps, sup, params.fail_threshold, params.fail_window_s
+    if rule_id == "AW-003":
+        eps, sup = run_distinct_metric(usable, _ip, _user, params.spray_threshold,
+                                       params.spray_window_s * US, sweep_every=sweep_every,
+                                       cap=cap)
+        return eps, sup, params.spray_threshold, params.spray_window_s
+    if rule_id == "AW-004":
+        eps, sup = detect_fail_then_success(usable, params.fail_threshold, params.lookback_s * US,
+                                            sweep_every=sweep_every, cap=cap)
+        return eps, sup, params.fail_threshold, params.lookback_s
     raise ValueError("unknown rule")
 
 
