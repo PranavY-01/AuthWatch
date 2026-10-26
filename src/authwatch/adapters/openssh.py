@@ -1,4 +1,4 @@
-"""OpenSSH text adapter (Spec §6.10.3, decision D11). EXPERIMENTAL.
+"""OpenSSH text adapter. EXPERIMENTAL.
 
 Status: PROPOSED. Validated only against authored samples, not real sshd logs.
 
@@ -7,7 +7,7 @@ message), irrelevant (another process, or listed sshd bookkeeping), unsupported 
 shape, unknown sshd message, or a repeat summary) or invalid (no buildable timestamp).
 
 Attacker-controlled fields are sanitized with a warning; a recognised authentication line
-is never rejected because of its username, address or port (Spec §6.10.1).
+is never rejected because of its username, address or port.
 """
 
 import re

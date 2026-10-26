@@ -8,3 +8,6 @@ out/
 reports/
 *.report.json
 *.log
+
+# design spec is kept locally, not published
+docs/master-build.md

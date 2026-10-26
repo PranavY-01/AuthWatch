@@ -1,5 +1,5 @@
-"""Terminal summary (Rich). Every untrusted string goes through ``safe_display``
-(Spec §10.5, errata E9). This and cli.py are the only modules that import Rich."""
+"""Terminal summary (Rich). Every untrusted string goes through ``safe_display``.
+This and cli.py are the only modules that import Rich."""
 
 from rich.console import Console
 from rich.markup import escape

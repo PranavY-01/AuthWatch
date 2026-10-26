@@ -1,5 +1,4 @@
-"""Counters, coverage reasons, status derivation, the error log and the timeline block
-(Spec §5.4, §6.8, decisions D5 and D6)."""
+"""Counters, coverage reasons, status derivation, the error log and the timeline block."""
 
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass

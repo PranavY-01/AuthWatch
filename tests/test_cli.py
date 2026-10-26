@@ -1,4 +1,4 @@
-"""Integration tests: real subprocesses, real exit codes and streams (Spec §12.4)."""
+"""Integration tests: real subprocesses, real exit codes and streams."""
 
 import hashlib
 import json
@@ -28,7 +28,7 @@ def report_of(tmp_path, *args):
     return proc, json.loads(out.read_text(encoding="utf-8"))
 
 
-# Spec §15.2 expected alerts (first five columns) for attacks.jsonl with default parameters.
+# Expected alerts (rule, subject, first/last seen, count, peak) for attacks.jsonl with default parameters.
 EXPECTED = [
     ("AW-004", "user:alice", "2026-10-26T10:30:00Z", "2026-10-26T10:33:00Z", 9, 9),
     ("AW-001", "ip:203.0.113.50", "2026-10-26T10:30:00Z", "2026-10-26T10:32:00Z", 9, 9),
@@ -72,7 +72,7 @@ def test_clean_sample_exit_0(tmp_path):
 
 
 def test_attacks_sample_alerts(tmp_path):
-    """Spec §15.2: attacks.jsonl -> alerts_detected, exit 1, the expected alerts, no dave."""
+    """attacks.jsonl -> alerts_detected, exit 1, the expected alerts, no dave."""
     proc, rep = report_of(tmp_path, SAMPLES / "attacks.jsonl")
     assert proc.returncode == 1, proc.stderr
     assert rep["status"] == "alerts_detected" and rep["coverage"]["complete"]

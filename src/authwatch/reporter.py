@@ -1,4 +1,4 @@
-"""Report assembly in the shared ``7d7b-report`` envelope (Spec §8.3, §8.5, decision D6)."""
+"""Report assembly in the shared ``7d7b-report`` envelope."""
 
 import json
 from collections.abc import Sequence

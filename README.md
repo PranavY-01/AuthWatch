@@ -77,7 +77,7 @@ input file ─▶ reader.py ─▶ adapters/{jsonl,openssh}.py ─▶ models.py 
                      dedupe, sort     episodes, bounded     status, exit       ─▶ outputs.py (atomic, path-safe)
 ```
 
-The engine (everything except `cli.py` and `render.py`) imports neither `typer` nor `rich`, so it can be used as a library. Detection modules see only normalized events, never raw source syntax. The full design is in [docs/master-build.md](docs/master-build.md); implementation decisions and deviations are in [BUILD_NOTES.md](BUILD_NOTES.md).
+The engine (everything except `cli.py` and `render.py`) imports neither `typer` nor `rich`, so it can be used as a library. Detection modules see only normalized events, never raw source syntax. How to use it day to day is in the [user guide](docs/USER_GUIDE.md); implementation decisions, measured performance and known gaps are in [BUILD_NOTES.md](BUILD_NOTES.md).
 
 ## Event schema
 
@@ -96,7 +96,7 @@ One JSON object per line (JSONL), UTF-8:
 | `username` | yes | **yes** | ≤ 256 characters |
 | `source_ip` | yes | **yes** | IPv4/IPv6 string; an IPv6 scope id is tolerated; integers are rejected |
 | `source_os`, `source_product` | yes | no | lower-case tokens |
-| `source_port`, `event_id`, `record_id`, `source_host`, `failure_reason`, `auth_method`, `logon_type`, `parser_name`, `parse_warnings` | no | yes | see Spec §8.1 |
+| `source_port`, `event_id`, `record_id`, `source_host`, `failure_reason`, `auth_method`, `logon_type`, `parser_name`, `parse_warnings` | no | yes | see the [user guide](docs/USER_GUIDE.md#41-the-jsonl-event-format) |
 
 "Nullable" does not mean "optional": a missing `timestamp`, `username` or `source_ip` key is an error, so a typo such as `sourceip` cannot silently become `null`. `failure_reason` is allowed only with `outcome: failure`.
 
@@ -363,7 +363,7 @@ The suite (295 passed, 3 skipped on Windows 11 / Python 3.12) includes:
 
 - **Brute-force oracles** for the window engine. An O(n²) reference written from the definition recomputes every window from scratch and is compared with the engine on 3 000 seeded random streams, for the count metric, the distinct-account metric and AW-004. Each comparison runs with sweeping at its default, at every event, and disabled. There were 0 mismatches.
 - Shuffle invariance and username-spelling invariance on the fixtures.
-- Every row of the edge-case register (Spec §11).
+- Every case of the project's edge-case register (77 numbered cases; each test names its case).
 - Subprocess integration tests that assert real exit codes and streams.
 
 The three skips are symlink tests (they need Developer Mode on Windows) and a real `chmod 000` test (POSIX only; a monkeypatched equivalent runs).

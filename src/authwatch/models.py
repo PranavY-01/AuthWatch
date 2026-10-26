@@ -1,4 +1,4 @@
-"""Strict event schema 1.0 (Spec §6.2, §8.1) and validation reason codes (errata E4)."""
+"""Strict event schema 1.0 and validation reason codes."""
 
 from typing import Annotated, Literal, Optional
 

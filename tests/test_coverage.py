@@ -12,7 +12,7 @@ def run(rule="AW-001", alerts=0, unc=None, suppressed=0):
 
 
 def test_status_table():
-    """All five rows of the status table (Spec §6.8)."""
+    """All five rows of the status table."""
     c = Counters(records_read=1, events_normalized=1, events_analyzed=1)
     assert derive(c, [run()], 1) == ("clean", "clean", True, [])
     assert derive(c, [run(alerts=2)], 1) == ("alerts_detected", "alerts_detected", True, [])

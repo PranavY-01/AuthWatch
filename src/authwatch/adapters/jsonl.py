@@ -1,4 +1,4 @@
-"""JSONL adapter: normalized schema-1.0 events, one per line (Spec §6.10.2).
+"""JSONL adapter: normalized schema-1.0 events, one per line.
 
 This is the strict contract: every non-blank line must validate. There is no
 "unsupported" or "irrelevant" class for JSONL.

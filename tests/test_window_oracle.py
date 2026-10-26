@@ -1,4 +1,4 @@
-"""Window-engine oracle tests (Spec §12.3, errata E7).
+"""Window-engine oracle tests.
 
 The oracle recomputes every window from scratch (O(n^2)) straight from the definition and
 is deliberately independent of authwatch.window.
@@ -16,7 +16,7 @@ from conftest import ev
 STREAMS = 3000
 
 
-# ---------------------------------------------------------------- oracle (from E7 text)
+# ------------------------------------------------- oracle (from the window definition)
 def oracle(events, threshold, window, distinct=False):
     """Episodes as (first_line, last_line, count, peak), sorted."""
     ordered = sorted(events, key=lambda e: (e.ts_us, e.order))
@@ -210,7 +210,7 @@ def test_distinct_metric_one_episode_per_burst():
     assert run_distinct_metric(one_account, lambda e: e.ip, lambda e: e.user, 10, 600)[0] == []
 
 
-# ------------------------------------------------------------- AW-004 oracle (Spec §12.3)
+# -------------------------------------------------------------------- AW-004 oracle
 def oracle_aw004(events, threshold, lookback):
     """For each success, recount unconsumed earlier failures of that account in (t - L, t]."""
     ordered = sorted(events, key=SORT_KEY)

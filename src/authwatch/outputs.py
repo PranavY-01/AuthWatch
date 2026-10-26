@@ -1,4 +1,4 @@
-"""Input checks, output-path safety and atomic writes (Spec §9.4, errata E1)."""
+"""Input checks, output-path safety and atomic writes."""
 
 import json
 import os

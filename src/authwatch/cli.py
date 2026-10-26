@@ -1,5 +1,4 @@
-"""Command-line interface (Typer). Orchestrates the engine; owns all exit-code mapping
-(Spec §7.3, §9, errata E2, E10, E11)."""
+"""Command-line interface (Typer). Orchestrates the engine; owns all exit-code mapping."""
 
 import functools
 import os

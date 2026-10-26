@@ -1,4 +1,4 @@
-"""Keyed username redaction for every output (Spec §6.11, decision D8).
+"""Keyed username redaction for every output.
 
 Grouping happens on the real username key before display, so redaction never changes
 which alerts fire; it changes only what is shown.

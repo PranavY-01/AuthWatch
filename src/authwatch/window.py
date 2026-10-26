@@ -1,4 +1,4 @@
-"""Sliding-window episode engine (Spec §6.6, errata E6).
+"""Sliding-window episode engine.
 
 Window semantics are frozen: the window ending at event time ``t`` holds events with
 ``t - W < ts <= t``. An episode opens when the metric reaches the threshold, absorbs every
@@ -233,7 +233,7 @@ def detect_fail_then_success(usable: Sequence[Event], threshold: int, lookback_u
                              sweep_every: int = SWEEP_EVERY, cap: int = ALERT_CAP,
                              stats: dict | None = None) -> tuple[list[Episode], int]:
     """AW-004: a success preceded by >= ``threshold`` failures for the same account within
-    ``(t - lookback, t]`` (errata E8).
+    ``(t - lookback, t]``.
 
     ``usable`` holds failures and successes sorted by the global key, so failures come
     before a success at an equal timestamp. Failures that produced an alert are consumed;

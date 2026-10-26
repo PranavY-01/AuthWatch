@@ -205,7 +205,7 @@ def test_openssh_no_sshd_lines_is_no_events(tmp_path):
 
 
 def test_normalize_round_trip(tmp_path):
-    """D10: normalize output is accepted unchanged by analyze and gives the same alerts."""
+    """normalize output is accepted unchanged by analyze and gives the same alerts."""
     p = write(tmp_path, "auth.log", AUTHORED_LOG.encode())
     norm = tmp_path / "events.jsonl"
     proc = aw("normalize", p, "--output", norm, "--input-format", "openssh",

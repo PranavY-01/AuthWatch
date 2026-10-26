@@ -1,4 +1,4 @@
-"""Bytes-level line reader, whole-input checks and hardened JSON parsing (Spec §6.1, errata E3).
+"""Bytes-level line reader, whole-input checks and hardened JSON parsing.
 
 Lines are split on ``b"\\n"`` only; every byte read is hashed, including drained over-long
 lines, BOMs and blank lines, so the recorded SHA-256 covers the exact file analyzed.

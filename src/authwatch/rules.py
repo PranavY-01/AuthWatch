@@ -1,4 +1,4 @@
-"""Rule catalogue, parameter validation and alert construction (Spec §6.7, §6.9, decision D7)."""
+"""Rule catalogue, parameter validation and alert construction."""
 
 import hashlib
 import json
@@ -66,7 +66,7 @@ class Params:
     lookback_s: int = 900
 
     def validate(self) -> None:
-        """Bounds for every parameter, whichever rules are enabled (Spec §9.1, D3)."""
+        """Bounds for every parameter, whichever rules are enabled."""
         for name, value in (("--fail-threshold", self.fail_threshold),
                             ("--spray-threshold", self.spray_threshold)):
             if not THRESHOLD_MIN <= value <= THRESHOLD_MAX:

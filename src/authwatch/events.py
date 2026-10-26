@@ -1,5 +1,4 @@
-"""Compact internal events, deduplication, rule input selection and the global sort key
-(Spec §6.5, errata E5, decisions D1 and D4)."""
+"""Compact internal events, deduplication, rule input selection and the global sort key."""
 
 import hashlib
 import json

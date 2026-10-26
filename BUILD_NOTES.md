@@ -1,6 +1,7 @@
 # AuthWatch 1.0.0 — Build Notes
 
-The build record for AuthWatch v1.0.0 against `docs/master-build.md` (Spec 2.0.0) and the
+The build record for AuthWatch v1.0.0 against its design specification (version 2.0.0, kept
+privately; "Spec §" references below point into it) and the
 build instructions' errata E1–E14 and decisions D1–D13. It covers what was decided, what
 differs from the Spec, what was proven, and what remains unverified.
 

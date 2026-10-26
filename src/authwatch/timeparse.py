@@ -1,4 +1,4 @@
-"""Strict timestamp profile, integer-microsecond time, and duration parsing (Spec §6.3).
+"""Strict timestamp profile, integer-microsecond time, and duration parsing.
 
 No function in this module reads the wall clock.
 """

@@ -1,5 +1,4 @@
-"""CSV alert export with formula-injection escaping (Spec §8.6, D12) and the normalized
-JSONL writer (Spec §8.2, D9)."""
+"""CSV alert export with formula-injection escaping and the normalized JSONL writer."""
 
 import csv
 import io

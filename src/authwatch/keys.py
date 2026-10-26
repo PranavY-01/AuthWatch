@@ -1,4 +1,4 @@
-"""Canonical grouping keys for source IPs and usernames (Spec §6.4).
+"""Canonical grouping keys for source IPs and usernames.
 
 Raw values are kept for display; rules group only on these keys.
 """
