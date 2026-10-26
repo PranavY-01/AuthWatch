@@ -1,0 +1,535 @@
+{
+  "envelope": {
+    "schema": "7d7b-report",
+    "schema_version": 1,
+    "tool": "AuthWatch",
+    "tool_version": "1.0.0",
+    "run_id": "5e4cf7e2-bfe3-4fd0-b08e-e5415edb8a2b",
+    "started_at": "2026-10-26T18:03:36Z",
+    "completed_at": "2026-10-26T18:03:36Z"
+  },
+  "status": "alerts_detected",
+  "result": "alerts_detected",
+  "input": {
+    "label": "attacks.jsonl",
+    "format": "jsonl",
+    "sha256": "f6c083c3f2bff0f7574d239a8755fc37d34b479adea61d2957b0800406ed80fe",
+    "size_bytes": 16124
+  },
+  "parameters": {
+    "rules": [
+      "AW-001",
+      "AW-002",
+      "AW-003",
+      "AW-004"
+    ],
+    "fail_threshold": 5,
+    "fail_window_s": 300,
+    "spray_threshold": 10,
+    "spray_window_s": 600,
+    "lookback_s": 900,
+    "redaction": null,
+    "input_format": "jsonl",
+    "assume_year": null,
+    "assume_tz": null
+  },
+  "coverage": {
+    "complete": true,
+    "reasons": [],
+    "counters": {
+      "lines_total": 39,
+      "blank_lines": 0,
+      "records_read": 39,
+      "events_normalized": 39,
+      "records_invalid": 0,
+      "records_unsupported": 0,
+      "records_irrelevant": 0,
+      "events_with_warnings": 0,
+      "duplicates_dropped": 0,
+      "duplicate_conflicts": 0,
+      "events_analyzed": 39
+    },
+    "rules": {
+      "AW-001": {
+        "uncorrelatable": 0,
+        "by_reason": {},
+        "alerts_suppressed": 0
+      },
+      "AW-002": {
+        "uncorrelatable": 0,
+        "by_reason": {},
+        "alerts_suppressed": 0
+      },
+      "AW-003": {
+        "uncorrelatable": 0,
+        "by_reason": {},
+        "alerts_suppressed": 0
+      },
+      "AW-004": {
+        "uncorrelatable": 0,
+        "by_reason": {},
+        "alerts_suppressed": 0
+      }
+    },
+    "timeline": {
+      "earliest": "2026-10-26T10:01:40Z",
+      "latest": "2026-10-26T11:15:00Z",
+      "largest_gap_seconds": 1050,
+      "gap_start": "2026-10-26T10:52:30Z",
+      "gap_end": "2026-10-26T11:10:00Z",
+      "out_of_order_records": 6
+    }
+  },
+  "summary": {
+    "AW-001": 2,
+    "AW-002": 2,
+    "AW-003": 1,
+    "AW-004": 1,
+    "errors": 0
+  },
+  "findings": [
+    {
+      "event": "AW-004",
+      "category": "detection",
+      "subject": "user:alice",
+      "details": {
+        "alert_id": "9e00a6207e1be355",
+        "title": "Success after repeated failures on the same account",
+        "severity": "HIGH",
+        "attack": [
+          "T1110",
+          "T1078"
+        ],
+        "first_seen": "2026-10-26T10:30:00Z",
+        "last_seen": "2026-10-26T10:33:00Z",
+        "count": 9,
+        "peak_in_window": 9,
+        "threshold": 5,
+        "window_seconds": 900,
+        "description": "A successful authentication for account alice at 2026-10-26T10:33:00Z followed 9 failures within the 900s lookback (threshold 5); success came from a source IP not seen in the failures.",
+        "evidence": {
+          "lines": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+          ],
+          "lines_truncated": false,
+          "success_line": 10,
+          "success_ip": "198.51.100.7",
+          "ip_changed": true,
+          "usernames": [
+            {
+              "value": "alice",
+              "count": 9
+            }
+          ],
+          "source_ips": [
+            {
+              "value": "203.0.113.50",
+              "count": 9
+            }
+          ],
+          "distinct": {
+            "usernames": 1,
+            "source_ips": 1
+          },
+          "untracked": {
+            "usernames": 0,
+            "source_ips": 0
+          }
+        },
+        "caveats": [
+          "A user who finally remembers the password looks the same; check whether the success came from a new source."
+        ]
+      }
+    },
+    {
+      "event": "AW-001",
+      "category": "detection",
+      "subject": "ip:203.0.113.50",
+      "details": {
+        "alert_id": "2248c57a9296808c",
+        "title": "Failed-login burst from one source IP",
+        "severity": "MEDIUM",
+        "attack": [
+          "T1110"
+        ],
+        "first_seen": "2026-10-26T10:30:00Z",
+        "last_seen": "2026-10-26T10:32:00Z",
+        "count": 9,
+        "peak_in_window": 9,
+        "threshold": 5,
+        "window_seconds": 300,
+        "description": "9 failed authentication attempts from 203.0.113.50 between 2026-10-26T10:30:00Z and 2026-10-26T10:32:00Z; 5 or more within 300s (peak 9 in one window).",
+        "evidence": {
+          "lines": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+          ],
+          "lines_truncated": false,
+          "usernames": [
+            {
+              "value": "alice",
+              "count": 9
+            }
+          ],
+          "source_ips": [
+            {
+              "value": "203.0.113.50",
+              "count": 9
+            }
+          ],
+          "distinct": {
+            "usernames": 1,
+            "source_ips": 1
+          },
+          "untracked": {
+            "usernames": 0,
+            "source_ips": 0
+          }
+        },
+        "caveats": [
+          "Shared addresses (NAT, proxies, VPN exits) can make many users look like one source; an IP address does not identify a person."
+        ]
+      }
+    },
+    {
+      "event": "AW-002",
+      "category": "detection",
+      "subject": "user:alice",
+      "details": {
+        "alert_id": "f29f39976cc6e33c",
+        "title": "Repeated failures against one account",
+        "severity": "MEDIUM",
+        "attack": [
+          "T1110.001"
+        ],
+        "first_seen": "2026-10-26T10:30:00Z",
+        "last_seen": "2026-10-26T10:32:00Z",
+        "count": 9,
+        "peak_in_window": 9,
+        "threshold": 5,
+        "window_seconds": 300,
+        "description": "9 failed authentication attempts against account alice between 2026-10-26T10:30:00Z and 2026-10-26T10:32:00Z from 1 source IP(s); 5 or more within 300s (peak 9 in one window).",
+        "evidence": {
+          "lines": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+          ],
+          "lines_truncated": false,
+          "usernames": [
+            {
+              "value": "alice",
+              "count": 9
+            }
+          ],
+          "source_ips": [
+            {
+              "value": "203.0.113.50",
+              "count": 9
+            }
+          ],
+          "distinct": {
+            "usernames": 1,
+            "source_ips": 1
+          },
+          "untracked": {
+            "usernames": 0,
+            "source_ips": 0
+          }
+        },
+        "caveats": [
+          "Stale saved passwords and service retry loops produce the same pattern; check whether the sources are expected."
+        ]
+      }
+    },
+    {
+      "event": "AW-001",
+      "category": "detection",
+      "subject": "ip:192.0.2.99",
+      "details": {
+        "alert_id": "68d9613c634a9b1a",
+        "title": "Failed-login burst from one source IP",
+        "severity": "MEDIUM",
+        "attack": [
+          "T1110"
+        ],
+        "first_seen": "2026-10-26T10:40:00Z",
+        "last_seen": "2026-10-26T10:41:50Z",
+        "count": 12,
+        "peak_in_window": 12,
+        "threshold": 5,
+        "window_seconds": 300,
+        "description": "12 failed authentication attempts from 192.0.2.99 between 2026-10-26T10:40:00Z and 2026-10-26T10:41:50Z; 5 or more within 300s (peak 12 in one window).",
+        "evidence": {
+          "lines": [
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "lines_truncated": false,
+          "usernames": [
+            {
+              "value": "user00",
+              "count": 1
+            },
+            {
+              "value": "user01",
+              "count": 1
+            },
+            {
+              "value": "user02",
+              "count": 1
+            },
+            {
+              "value": "user03",
+              "count": 1
+            },
+            {
+              "value": "user04",
+              "count": 1
+            },
+            {
+              "value": "user05",
+              "count": 1
+            },
+            {
+              "value": "user06",
+              "count": 1
+            },
+            {
+              "value": "user07",
+              "count": 1
+            },
+            {
+              "value": "user08",
+              "count": 1
+            },
+            {
+              "value": "user09",
+              "count": 1
+            }
+          ],
+          "source_ips": [
+            {
+              "value": "192.0.2.99",
+              "count": 12
+            }
+          ],
+          "distinct": {
+            "usernames": 12,
+            "source_ips": 1
+          },
+          "untracked": {
+            "usernames": 0,
+            "source_ips": 0
+          }
+        },
+        "caveats": [
+          "Shared addresses (NAT, proxies, VPN exits) can make many users look like one source; an IP address does not identify a person."
+        ]
+      }
+    },
+    {
+      "event": "AW-003",
+      "category": "detection",
+      "subject": "ip:192.0.2.99",
+      "details": {
+        "alert_id": "d999ecabcc73be95",
+        "title": "One source IP failing against many accounts",
+        "severity": "MEDIUM",
+        "attack": [
+          "T1110.003"
+        ],
+        "first_seen": "2026-10-26T10:40:00Z",
+        "last_seen": "2026-10-26T10:41:50Z",
+        "count": 12,
+        "peak_in_window": 12,
+        "threshold": 10,
+        "window_seconds": 600,
+        "description": "192.0.2.99 failed against 12 distinct accounts within a 600s window (threshold 10); 12 failure events between 2026-10-26T10:40:00Z and 2026-10-26T10:41:50Z.",
+        "evidence": {
+          "lines": [
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22
+          ],
+          "lines_truncated": false,
+          "usernames": [
+            {
+              "value": "user00",
+              "count": 1
+            },
+            {
+              "value": "user01",
+              "count": 1
+            },
+            {
+              "value": "user02",
+              "count": 1
+            },
+            {
+              "value": "user03",
+              "count": 1
+            },
+            {
+              "value": "user04",
+              "count": 1
+            },
+            {
+              "value": "user05",
+              "count": 1
+            },
+            {
+              "value": "user06",
+              "count": 1
+            },
+            {
+              "value": "user07",
+              "count": 1
+            },
+            {
+              "value": "user08",
+              "count": 1
+            },
+            {
+              "value": "user09",
+              "count": 1
+            }
+          ],
+          "source_ips": [
+            {
+              "value": "192.0.2.99",
+              "count": 12
+            }
+          ],
+          "distinct": {
+            "usernames": 12,
+            "source_ips": 1
+          },
+          "untracked": {
+            "usernames": 0,
+            "source_ips": 0
+          }
+        },
+        "caveats": [
+          "Shared addresses (NAT, proxies, VPN exits) can make many users look like one source; an IP address does not identify a person."
+        ]
+      }
+    },
+    {
+      "event": "AW-002",
+      "category": "detection",
+      "subject": "user:admin",
+      "details": {
+        "alert_id": "a38d5578de25abdd",
+        "title": "Repeated failures against one account",
+        "severity": "MEDIUM",
+        "attack": [
+          "T1110.001"
+        ],
+        "first_seen": "2026-10-26T10:50:00Z",
+        "last_seen": "2026-10-26T10:52:30Z",
+        "count": 6,
+        "peak_in_window": 6,
+        "threshold": 5,
+        "window_seconds": 300,
+        "description": "6 failed authentication attempts against account admin between 2026-10-26T10:50:00Z and 2026-10-26T10:52:30Z from 6 source IP(s); 5 or more within 300s (peak 6 in one window).",
+        "evidence": {
+          "lines": [
+            23,
+            24,
+            25,
+            26,
+            27,
+            28
+          ],
+          "lines_truncated": false,
+          "usernames": [
+            {
+              "value": "admin",
+              "count": 6
+            }
+          ],
+          "source_ips": [
+            {
+              "value": "203.0.113.1",
+              "count": 1
+            },
+            {
+              "value": "203.0.113.2",
+              "count": 1
+            },
+            {
+              "value": "203.0.113.3",
+              "count": 1
+            },
+            {
+              "value": "203.0.113.4",
+              "count": 1
+            },
+            {
+              "value": "203.0.113.5",
+              "count": 1
+            },
+            {
+              "value": "203.0.113.6",
+              "count": 1
+            }
+          ],
+          "distinct": {
+            "usernames": 1,
+            "source_ips": 6
+          },
+          "untracked": {
+            "usernames": 0,
+            "source_ips": 0
+          }
+        },
+        "caveats": [
+          "Stale saved passwords and service retry loops produce the same pattern; check whether the sources are expected."
+        ]
+      }
+    }
+  ],
+  "errors": [],
+  "errors_truncated": false
+}
