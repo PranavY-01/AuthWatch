@@ -29,7 +29,7 @@ def test_report_shape_and_counts():
                          "summary", "findings", "errors", "errors_truncated"]
     env = rep["envelope"]
     assert (env["schema"], env["schema_version"], env["tool"], env["tool_version"]) == \
-        ("7d7b-report", 1, "AuthWatch", "1.0.0")
+        ("7d7b-report", 1, "AuthWatch", "1.1.0")
     for rule_id in RULE_IDS:
         assert rep["summary"][rule_id] == sum(f["event"] == rule_id for f in rep["findings"])
     assert rep["summary"]["errors"] == 0

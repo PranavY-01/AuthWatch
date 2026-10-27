@@ -50,7 +50,7 @@ def summarize(report):
 
 def test_version_and_help():
     proc = aw("--version")
-    assert proc.returncode == 0 and proc.stdout == "authwatch 1.0.0\n"
+    assert proc.returncode == 0 and proc.stdout == "authwatch 1.1.0\n"
     assert aw("--help").returncode == 0
     assert aw("analyze", "--help").returncode == 0
     assert aw("analyze", "x", "--no-such-option").returncode == 2
@@ -60,7 +60,7 @@ def test_version_matches_metadata():
     import importlib.metadata
 
     import authwatch
-    assert authwatch.__version__ == importlib.metadata.version("authwatch") == "1.0.0"
+    assert authwatch.__version__ == importlib.metadata.version("authwatch") == "1.1.0"
 
 
 def test_clean_sample_exit_0(tmp_path):
@@ -111,8 +111,8 @@ def test_broken_sample_incomplete_with_alerts(tmp_path):
     assert summarize(rep) == expected_for_implemented_rules()
     assert [(int(e["subject"].split(":")[1]), e["message"]) for e in rep["errors"]] == BROKEN_ERRORS
     assert all(e["kind"] == "INVALID_RECORD" for e in rep["errors"])
-    assert "INCOMPLETE" in proc.stdout and "line 44  schema_invalid:source_ip,unknown_field" \
-        in proc.stdout
+    assert "INCOMPLETE" in proc.stdout and "Coverage gaps" in proc.stdout
+    assert re.search(r"\b44\s+schema_invalid:source_ip,unknown_field\b", proc.stdout)
     c = rep["coverage"]["counters"]
     assert c["records_read"] == c["events_normalized"] + c["records_invalid"] \
         + c["records_unsupported"] + c["records_irrelevant"]

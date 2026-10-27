@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "authwatch"
-version = "1.0.0"
+version = "1.1.0"
 description = "Authentication-log analyzer with sliding-window detection and honest coverage reporting"
 readme = "README.md"
 requires-python = ">=3.11"

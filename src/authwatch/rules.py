@@ -81,6 +81,34 @@ class Params:
             raise ConfigError("--lookback must be at most 30d")
 
 
+# What each rule groups by and measures, and which options tune it.
+_RULE_SHAPE = {
+    "AW-001": ("source IP", "failures in window", "--fail-threshold", "fail_threshold",
+               "--fail-window", "fail_window_s"),
+    "AW-002": ("account", "failures in window", "--fail-threshold", "fail_threshold",
+               "--fail-window", "fail_window_s"),
+    "AW-003": ("source IP", "distinct accounts failing in window", "--spray-threshold",
+               "spray_threshold", "--spray-window", "spray_window_s"),
+    "AW-004": ("account", "failures in lookback before a success", "--fail-threshold",
+               "fail_threshold", "--lookback", "lookback_s"),
+}
+
+
+def rule_catalogue(params: Params | None = None) -> list[dict]:
+    """Every rule with its key, metric, thresholds and ATT&CK tags (for ``authwatch rules``)."""
+    params = params or Params()
+    rows = []
+    for rule_id in RULE_IDS:
+        spec = RULES[rule_id]
+        key, metric, t_opt, t_attr, w_opt, w_attr = _RULE_SHAPE[rule_id]
+        rows.append({"rule_id": rule_id, "title": spec.title, "severity": spec.severity,
+                     "groups_by": key, "metric": metric,
+                     "threshold": getattr(params, t_attr), "threshold_option": t_opt,
+                     "window_seconds": getattr(params, w_attr), "window_option": w_opt,
+                     "attack": list(spec.attack), "caveat": spec.caveat})
+    return rows
+
+
 def parse_rules(text: str) -> list[str]:
     """``--rules``: comma-separated known ids; trimmed, de-duplicated, sorted ascending."""
     chosen = {part.strip() for part in text.split(",")}

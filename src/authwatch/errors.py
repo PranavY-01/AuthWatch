@@ -28,3 +28,9 @@ class OperationalError(AuthWatchError):
     """The OS refused a read or write (exit 4)."""
 
     exit_code = 4
+
+
+class VerificationError(AuthWatchError):
+    """A file does not match the hash a report recorded for it (exit 4)."""
+
+    exit_code = 4

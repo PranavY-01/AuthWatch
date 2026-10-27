@@ -24,9 +24,13 @@ from authwatch.models import EVENT, INVALID, IRRELEVANT, UNSUPPORTED
 from authwatch.outputs import check_input, check_output_path, write_atomic
 from authwatch.reader import SAMPLE_SIZE, InputDigest, check_whole_input, read_lines
 from authwatch.redact import NoRedaction, from_environment
-from authwatch.render import console, err_console, render_summary, safe_display
+from authwatch.render import (console, err_console, render_diff, render_explain, render_rules,
+                              render_summary, render_validate, safe_display)
 from authwatch.reporter import build_report, to_json_bytes
-from authwatch.rules import RULE_IDS, Params, parse_rules, run_rules
+from authwatch.reports import (candidate_inputs, diff_exit_code, diff_reports,
+                               evidence_line_numbers, find_alert, load_report, read_evidence,
+                               record_fields, verify)
+from authwatch.rules import RULE_IDS, Params, parse_rules, rule_catalogue, run_rules
 from authwatch.timeparse import parse_assumed_tz, parse_duration
 
 app = typer.Typer(pretty_exceptions_enable=False, add_completion=False, no_args_is_help=True,
@@ -54,13 +58,13 @@ def guarded(fn):
         except typer.Exit:
             raise
         except KeyboardInterrupt:
-            err_console.print("Interrupted.", soft_wrap=True)
+            err_console.print("[bold yellow]Interrupted.[/]", soft_wrap=True)
             code = 130
         except AuthWatchError as exc:
-            err_console.print(f"error: {safe_display(str(exc))}", soft_wrap=True)
+            err_console.print(f"[bold red]error:[/] {safe_display(str(exc), 1000)}", soft_wrap=True)
             code = exc.exit_code
         except Exception as exc:  # never let a crash look like a finding
-            err_console.print(f"internal error: {safe_display(repr(exc))}", soft_wrap=True)
+            err_console.print(f"[bold red]internal error:[/] {safe_display(repr(exc), 1000)}", soft_wrap=True)
             code = 4
         raise typer.Exit(code)
     return wrapper
@@ -293,17 +297,137 @@ def normalize(
     write_atomic(output, normalized_jsonl(ing.records))
     c = ing.counters
     written = len(ing.records)
-    console.print(f"normalize: wrote {written} events to {safe_display(output.name)} "
+    console.print(f"[bold green]normalize[/] wrote [bold]{written}[/] events to "
+                  f"[bold]{safe_display(output.name)}[/] "
                   f"({c.records_read} records read, {c.records_irrelevant} irrelevant)",
                   soft_wrap=True)
     if c.records_invalid or c.records_unsupported or not written:
-        err_console.print(f"warning: incomplete normalization - {c.records_invalid} invalid, "
+        err_console.print(f"[bold red]warning:[/] incomplete normalization - {c.records_invalid} invalid, "
                           f"{c.records_unsupported} unsupported, {written} events written",
                           soft_wrap=True)
         for err in ing.errors.items[:10]:
             err_console.print(f"  {err['subject'].replace(':', ' ', 1)}  {err['message']}",
                               soft_wrap=True)
         return 4
+    return 0
+
+
+FormatOpt = Annotated[OutputFormat, typer.Option("--format",
+                                                 help="text for people, json for scripts.")]
+
+
+@app.command("explain", help="Show one alert and its evidence lines from the original file, "
+                             "after checking the file's SHA-256 matches the report.")
+@guarded
+def explain(
+    alert_id: Annotated[str, typer.Argument(metavar="ALERT_ID", show_default=False,
+                                            help="Alert id from the report (4+ leading characters).")],
+    report: Annotated[Path, typer.Option("--report", show_default=False,
+                                         help="Report written by analyze --report.")],
+    input_path: Annotated[Optional[Path], typer.Option(
+        "--input", show_default=False,
+        help="The analyzed file. Default: its name next to the report, then in the current "
+             "directory.")] = None,
+    raw: Annotated[bool, typer.Option("--raw", help="Show each evidence line in full instead "
+                                                    "of its key fields.")] = False,
+    fmt: FormatOpt = OutputFormat.text,
+) -> int:
+    rep = load_report(report)
+    finding = find_alert(rep, alert_id)
+    if input_path is None:
+        found = [p for p in candidate_inputs(rep, report) if p.is_file()]
+        if not found:
+            raise ConfigError("cannot find the analyzed file next to the report or in the "
+                              "current directory; pass --input PATH")
+        input_path = found[0]
+    else:
+        check_input(input_path)
+    wanted = evidence_line_numbers(finding)
+    evidence = read_evidence(input_path, set(wanted))
+    verify(evidence, rep, input_path)
+    success = (finding["details"].get("evidence") or {}).get("success_line")
+    is_jsonl = rep["input"].get("format") == "jsonl"
+    lines = [{"line": n, "role": "success" if n == success else "failure",
+              "text": evidence.lines.get(n),
+              "fields": record_fields(evidence.lines.get(n)) if is_jsonl else None}
+             for n in wanted]
+    redaction = (rep.get("parameters") or {}).get("redaction")
+    if fmt is OutputFormat.json:
+        _write_stdout(to_json_bytes({
+            "alert": finding, "verified": True,
+            "input": {"path": str(input_path), "sha256": evidence.sha256,
+                      "size_bytes": evidence.size},
+            "redacted_report": bool(redaction), "lines": lines}))
+    else:
+        render_explain({"finding": finding, "report_label": report.name, "lines": lines,
+                        "sha256": evidence.sha256, "size": evidence.size,
+                        "input_path": str(input_path), "redacted": bool(redaction),
+                        "raw": raw})
+    return 0
+
+
+@app.command("diff", help="Compare two reports: new, ongoing and no-longer-reported alerts.")
+@guarded
+def diff(
+    old: Annotated[Path, typer.Argument(metavar="OLD", show_default=False,
+                                        help="The earlier report.")],
+    new: Annotated[Path, typer.Argument(metavar="NEW", show_default=False,
+                                        help="The later report.")],
+    fmt: FormatOpt = OutputFormat.text,
+) -> int:
+    result = diff_reports(load_report(old), load_report(new))
+    if fmt is OutputFormat.json:
+        _write_stdout(to_json_bytes(result))
+    else:
+        render_diff(result)
+    return diff_exit_code(result)
+
+
+@app.command("validate", help="Check a JSONL file against event schema 1.0 and list every "
+                              "problem line (format only; no detection).")
+@guarded
+def validate(
+    input_path: InputArg,
+    fmt: FormatOpt = OutputFormat.text,
+    max_errors: Annotated[int, typer.Option("--max-errors",
+                                            help="Problem lines to show in text mode.")] = 50,
+) -> int:
+    if max_errors < 1:
+        raise ConfigError("--max-errors must be at least 1")
+    check_input(input_path)
+    ing = ingest(input_path, JsonlAdapter())
+    c = ing.counters
+    _, _, conflicts = dedupe(ing.events)
+    warnings: dict[str, int] = {}
+    for e in ing.events:
+        for w in e.warnings:
+            warnings[w] = warnings.get(w, 0) + 1
+    limits = {
+        "outcome is unknown": sum(e.outcome == "unknown" for e in ing.events),
+        "timestamp is null": sum(e.ts_us is None for e in ing.events),
+        "username is null or empty": sum(e.user is None for e in ing.events),
+        "source_ip is null": sum(e.ip is None for e in ing.events),
+        "record_id repeated with different content": len(conflicts),
+    }
+    valid = c.records_invalid == 0 and c.events_normalized > 0
+    result = {"label": input_path.name, "valid": valid, "counters": c.as_dict(),
+              "errors": ing.errors.items, "errors_total": ing.errors.total,
+              "errors_truncated": ing.errors.truncated, "warnings": warnings, "limits": limits}
+    if fmt is OutputFormat.json:
+        _write_stdout(to_json_bytes(result))
+    else:
+        render_validate(result, max_errors=max_errors)
+    return 0 if valid else 4
+
+
+@app.command("rules", help="List the detection rules with their defaults and ATT&CK tags.")
+@guarded
+def list_rules(fmt: FormatOpt = OutputFormat.text) -> int:
+    rows = rule_catalogue()
+    if fmt is OutputFormat.json:
+        _write_stdout(to_json_bytes({"rules": rows}))
+    else:
+        render_rules(rows)
     return 0
 
 
