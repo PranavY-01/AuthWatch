@@ -25,7 +25,7 @@ from authwatch.outputs import check_input, check_output_path, write_atomic
 from authwatch.reader import SAMPLE_SIZE, InputDigest, check_whole_input, read_lines
 from authwatch.redact import NoRedaction, from_environment
 from authwatch.render import (console, err_console, render_diff, render_explain, render_rules,
-                              render_summary, render_validate, safe_display)
+                              render_summary, render_validate, render_welcome, safe_display)
 from authwatch.reporter import build_report, to_json_bytes
 from authwatch.reports import (candidate_inputs, diff_exit_code, diff_reports,
                                evidence_line_numbers, find_alert, load_report, read_evidence,
@@ -33,7 +33,7 @@ from authwatch.reports import (candidate_inputs, diff_exit_code, diff_reports,
 from authwatch.rules import RULE_IDS, Params, parse_rules, rule_catalogue, run_rules
 from authwatch.timeparse import parse_assumed_tz, parse_duration
 
-app = typer.Typer(pretty_exceptions_enable=False, add_completion=False, no_args_is_help=True,
+app = typer.Typer(pretty_exceptions_enable=False, add_completion=False, no_args_is_help=False,
                   help="AuthWatch: authentication-log analyzer with honest coverage reporting.")
 
 ASSUME_YEAR_MIN, ASSUME_YEAR_MAX = 1970, 2100
@@ -151,12 +151,16 @@ def _version_callback(value: bool) -> None:
         raise typer.Exit(0)
 
 
-@app.callback()
+@app.callback(invoke_without_command=True)
 def _root(
+    ctx: typer.Context,
     version: Annotated[bool, typer.Option("--version", callback=_version_callback, is_eager=True,
                                           help="Show the version and exit.")] = False,
 ) -> None:
     """AuthWatch: authentication-log analyzer with honest coverage reporting."""
+    if ctx.invoked_subcommand is None:
+        render_welcome()
+        raise typer.Exit(0)
 
 
 _FORMAT_HELP = ("jsonl (normalized events) or openssh (EXPERIMENTAL: validated only against "

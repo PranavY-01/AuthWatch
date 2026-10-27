@@ -56,6 +56,15 @@ def test_version_and_help():
     assert aw("analyze", "x", "--no-such-option").returncode == 2
 
 
+def test_bare_command_shows_welcome_screen():
+    proc = aw()
+    assert proc.returncode == 0 and proc.stderr == ""
+    for word in ("A U T H W A T C H", "Commands", "explain", "diff", "validate", "rules",
+                 "Exit codes"):
+        assert word in proc.stdout
+    assert aw("--version").stdout == "authwatch 1.1.0\n"
+
+
 def test_version_matches_metadata():
     import importlib.metadata
 

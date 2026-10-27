@@ -70,6 +70,8 @@ authwatch --version             # prints: authwatch 1.1.0
 
 If the `authwatch` command is not found, use `python -m authwatch` instead; it behaves identically. Every example in this guide works either way.
 
+Run `authwatch` with no command to see an overview of every command, with examples and the exit codes. `authwatch COMMAND --help` lists the options of one command.
+
 **Windows users:** run this once per PowerShell session. It keeps non-ASCII characters intact when output is piped or saved.
 
 ```powershell

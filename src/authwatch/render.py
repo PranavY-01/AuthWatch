@@ -438,3 +438,56 @@ def render_rules(rows: list[dict], out: Console | None = None) -> None:
     out.print(table)
     out.print("[dim]Bounds: thresholds 2–100000 · windows 1s–7d · lookback ≥ fail window and "
               "≤ 30d. Select rules with --rules AW-001,AW-004.[/]", soft_wrap=True)
+
+
+# ----------------------------------------------------------------------------------- welcome
+WELCOME_COMMANDS = (
+    ("analyze", "Detect suspicious login patterns and report coverage",
+     "authwatch analyze auth.jsonl --report r.json"),
+    ("explain", "Show one alert with its evidence lines, hash-checked",
+     "authwatch explain 9e00a620 --report r.json"),
+    ("diff", "Compare two runs: new, ongoing, no longer reported",
+     "authwatch diff yesterday.json today.json"),
+    ("validate", "Check a JSONL file against the schema, line by line",
+     "authwatch validate events.jsonl"),
+    ("rules", "List the rules, defaults and ATT&CK tags", "authwatch rules"),
+    ("normalize", "Turn OpenSSH logs into schema-1.0 JSONL (experimental)",
+     "authwatch normalize auth.log --output e.jsonl --input-format openssh ..."),
+)
+
+
+def render_welcome(out: Console | None = None) -> None:
+    """The screen shown when ``authwatch`` is run without a command."""
+    out = out or console
+    _fit(out)
+    out.print(Panel(
+        f"[bold {ACCENT}]A U T H W A T C H[/]  [dim]{__version__}[/]\n"
+        "[bold]Authentication-log analyzer with honest coverage reporting[/]\n"
+        "[dim]A partial analysis is never presented as a clean one.[/]",
+        border_style=ACCENT, box=box.DOUBLE, padding=(1, 4), expand=False))
+    out.print()
+
+    table = Table(title=f"[bold {ACCENT}]Commands[/]", title_justify="left", box=box.ROUNDED,
+                  header_style=f"bold {ACCENT}", border_style="grey50")
+    table.add_column("Command", style="bold yellow", no_wrap=True)
+    table.add_column("What it does")
+    table.add_column("Example", style="dim")
+    for name, what, example in WELCOME_COMMANDS:
+        table.add_row(name, what, example)
+    out.print(table)
+    out.print()
+
+    out.print(Panel(
+        "[bold]python samples/make_samples.py[/]\n"
+        "[bold]authwatch analyze samples/attacks.jsonl --report out/r.json[/]\n"
+        "[bold]authwatch explain 9e00a620 --report out/r.json --input samples/attacks.jsonl[/]",
+        title=f"[bold {ACCENT}]Try it on the bundled samples[/]", title_align="left",
+        border_style="grey50", box=box.ROUNDED, padding=(0, 1)))
+    out.print()
+    out.print(_facts([
+        ("Exit codes", f"{badge('0', STATUS_LOOK['clean'][1])} clean   "
+                       f"{badge('1', STATUS_LOOK['alerts_detected'][1])} alerts   "
+                       f"{badge('4', STATUS_LOOK['incomplete'][1])} incomplete   "
+                       "[bold]2[/] bad command   [bold]3[/] unusable input"),
+        ("More help", "authwatch COMMAND --help   ·   docs/USER_GUIDE.md"),
+    ]))

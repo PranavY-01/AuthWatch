@@ -136,6 +136,8 @@ The demos `examples/demo.sh` (bash) and `examples/demo.ps1` (PowerShell) run all
 
 ### Commands
 
+Run `authwatch` on its own for an overview screen of every command with examples; `authwatch COMMAND --help` lists a command's options.
+
 ```text
 authwatch analyze INPUT
     [--input-format jsonl|openssh] [--assume-year YYYY] [--assume-tz Z|UTC|±HH:MM]
