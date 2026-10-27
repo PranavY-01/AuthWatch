@@ -1,4 +1,6 @@
-# AuthWatch 1.0.0 — Build Notes
+# AuthWatch — Build Notes
+
+Sections 1–10 record the v1.0.0 build; section 11 records what v1.1.0 added.
 
 The build record for AuthWatch v1.0.0 against its design specification (version 2.0.0, kept
 privately; "Spec §" references below point into it) and the
@@ -110,7 +112,7 @@ The other unproven snippets (distinct metric, AW-004, sweep, evidence bounding, 
 
 ## 8. Tests skipped, and why
 
-Final suite on Windows 11 / Python 3.12: **295 passed, 3 skipped** (`pytest -q -rs`). Skips:
+Final suite on Windows 11 / Python 3.12: **295 passed, 3 skipped** at v1.0.0, and **323 passed, 3 skipped** at v1.1.0 (`pytest -q -rs`). The same three tests are skipped in both:
 
 | Test | Reason |
 |---|---|
@@ -147,3 +149,40 @@ intended. The figures above come from the corrected input.
 - **Symlink refusal** (needs Developer Mode on Windows) and the **0600 report mode** (POSIX).
 - Whether spreadsheet software treats fullwidth `＝` as a formula. It is escaped regardless.
 - **Package name**: PyPI and GitHub availability of `authwatch` were not re-checked (no network calls were made).
+
+## 11. Version 1.1.0: inspection commands and terminal redesign
+
+### What was added
+
+| Addition | Where | Tests |
+|---|---|---|
+| `authwatch explain ALERT_ID --report R [--input P] [--raw]` | `reports.py` (load, find, hash, lines), `cli.py`, `render.render_explain` | `test_inspect.py::test_explain_*`, `test_render_explain_escapes_record_text` |
+| `authwatch diff OLD NEW` | `reports.diff_reports`, `render.render_diff` | `test_inspect.py::test_diff_*` |
+| `authwatch validate FILE [--max-errors N]` | `cli.validate`, `render.render_validate` | `test_inspect.py::test_validate_*` |
+| `authwatch rules` | `rules.rule_catalogue`, `render.render_rules` | `test_inspect.py::test_rules_listing` |
+| Terminal redesign: header panel, facts grid, rounded tables, severity and status badges, a red "Coverage gaps" panel with a meaning for every reason code, alert ids in the alert table | `render.py` | existing CLI tests plus the new ones |
+| Real colour screenshots | `docs/screenshots/*.svg`, recorded from real runs with Rich's `save_svg` | — |
+
+`reports.py`, like the rest of the engine, imports neither Rich nor Typer (the import grep covers it).
+
+### Decisions
+
+1. **`explain` finds the input** by the report's base-name label: first next to the report, then in the current directory, unless `--input` is given. A label containing a path separator, `.` or `..` is never used, so a crafted report cannot point `explain` at another file.
+2. **`explain` re-hashes the whole file** with the same reader `analyze` uses, so the line numbering and the SHA-256 are computed identically. A different hash or size raises the new `VerificationError` (exit 4) before any evidence is printed. Exit 4 was chosen over 2 because a changed evidence file is an operational finding, not a typo.
+3. **Alert-id prefixes**: at least 4 hex characters, case-insensitive. An ambiguous prefix is refused (exit 2) and the error says how many alerts it matches.
+4. **Reports are parsed defensively**, with the input's duplicate-key and non-finite rejection, a 256 MiB cap, and a structural check (`envelope.tool == "AuthWatch"`, `envelope.schema == "7d7b-report"`, a well-formed `findings[]`). A report may have been edited by someone else.
+5. **The `explain` field view** (timestamp, outcome, username, source IP, port) is used only for JSONL input. OpenSSH evidence, or `--raw`, shows each line in full (escaped, up to 1 000 characters, wrapped). When the report was redacted, `explain` warns that the evidence shows real usernames, because it reads the original file.
+6. **`diff` matches by alert id**, which hashes the rule, subject, first-seen time and thresholds, so a growing episode stays "ongoing". Alerts present only in the older run are labelled **"no longer reported"**, not "resolved", because absence usually means the activity is outside the newer file's time range. `diff` warns when parameters or redaction differ (ids not comparable), when a run used an ephemeral key, when a run was incomplete, and when both runs analyzed the same file.
+7. **`diff` exit codes** follow the analyze precedence: 4 if either run was incomplete, else 1 if anything is new, else 0. A partial run can never make a comparison look quiet.
+8. **`validate` is format-only.** Exit 0 means every non-blank line is a valid schema-1.0 event and there is at least one; exit 4 means invalid lines or no records. Valid records that `analyze` will report as gaps (`unknown` outcome, null timestamp, username or IP, conflicting `record_id`) and normalization warnings are listed as information but do not fail validation.
+9. **Version bumped to 1.1.0** (new commands; the report envelope is unchanged), so reports state which build made them.
+10. **Pipes and files render at 120 columns** (unless `COLUMNS` is set), because Rich defaults to 80 off a terminal and the tables would wrap. The colour itself appears only on a terminal.
+11. **Error and internal-error messages** are now displayed with a 1 000-character limit. A long Windows path pushed the useful part past the 200-character cut used for untrusted values. Untrusted values keep the 200-character limit.
+
+### Verified for v1.1.0
+
+- `pytest -q -rs`: 323 passed, 3 skipped (the same three as v1.0.0).
+- `examples/demo.sh` (Git Bash) and `examples/demo.ps1` (Windows PowerShell 5.1), both extended with `explain`, `validate` and `rules`: every step gave its expected exit code.
+- The import, `eval`/`exec`, `click`, `splitlines`/`json.load(` and stub greps are clean across `src/`, including `reports.py`; case traceability is still 73/73.
+- No Rich markup leaks (no literal `[bold]` or `[/]`) in the plain output of any command; hostile usernames render escaped in both the field and `--raw` views of `explain`.
+- The screenshots were rasterized with headless Edge and inspected visually.

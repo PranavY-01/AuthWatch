@@ -1,4 +1,4 @@
-# AuthWatch demo: a clean run, an alerts run and an incomplete run.
+# AuthWatch demo: a clean run, an alerts run, an incomplete run, and the inspection commands.
 # Usage: examples\demo.ps1 [-Work <dir>]   (default: current directory)
 # Requires AuthWatch installed:  python -m pip install -e ".[dev]"
 param([string]$Work = (Get-Location).Path)
@@ -18,6 +18,17 @@ python -m authwatch analyze (Join-Path $Work "samples\attacks.jsonl") --report (
 "### broken.jsonl (expect exit 4)"
 python -m authwatch analyze (Join-Path $Work "samples\broken.jsonl")
 "exit $LASTEXITCODE"
+
+"### explain the AW-004 alert (expect exit 0)"
+python -m authwatch explain 9e00a620 --report (Join-Path $Work "out\report.json") --input (Join-Path $Work "samples\attacks.jsonl")
+"exit $LASTEXITCODE"
+
+"### validate broken.jsonl (expect exit 4)"
+python -m authwatch validate (Join-Path $Work "samples\broken.jsonl")
+"exit $LASTEXITCODE"
+
+"### rules"
+python -m authwatch rules
 
 "### attacks report as JSON (first lines)"
 # Windows PowerShell 5.1 re-encodes text piped between two native programs (and may add a

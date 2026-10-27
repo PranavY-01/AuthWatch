@@ -3,10 +3,10 @@
     "schema": "7d7b-report",
     "schema_version": 1,
     "tool": "AuthWatch",
-    "tool_version": "1.0.0",
-    "run_id": "5e4cf7e2-bfe3-4fd0-b08e-e5415edb8a2b",
-    "started_at": "2026-10-26T18:03:36Z",
-    "completed_at": "2026-10-26T18:03:36Z"
+    "tool_version": "1.1.0",
+    "run_id": "2a2a6c0b-5e6f-4dec-bd7d-91d6b1d0388a",
+    "started_at": "2026-10-27T09:54:40Z",
+    "completed_at": "2026-10-27T09:54:40Z"
   },
   "status": "alerts_detected",
   "result": "alerts_detected",

@@ -2,7 +2,7 @@
 
 This guide covers getting your data ready, running AuthWatch, reading what it tells you, and acting on it. A final section explains how a reviewer can check the tool's claims for themselves.
 
-AuthWatch version: **1.0.0** · Event schema: **1.0**
+AuthWatch version: **1.1.0** · Event schema: **1.0**
 
 ---
 
@@ -16,7 +16,7 @@ AuthWatch version: **1.0.0** · Event schema: **1.0**
 6. [Reading the result: the triage order](#6-reading-the-result-the-triage-order)
 7. [Investigating each alert type](#7-investigating-each-alert-type)
 8. [When coverage is partial](#8-when-coverage-is-partial)
-9. [Verifying an alert against the original file](#9-verifying-an-alert-against-the-original-file)
+9. [Explaining and verifying an alert](#9-explaining-and-verifying-an-alert)
 10. [Tuning thresholds and windows](#10-tuning-thresholds-and-windows)
 11. [Privacy and handling reports safely](#11-privacy-and-handling-reports-safely)
 12. [Using AuthWatch in scripts and automation](#12-using-authwatch-in-scripts-and-automation)
@@ -65,7 +65,7 @@ cd AuthWatch
 python -m venv .venv
 . .venv/bin/activate            # Windows PowerShell: .venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
-authwatch --version             # prints: authwatch 1.0.0
+authwatch --version             # prints: authwatch 1.1.0
 ```
 
 If the `authwatch` command is not found, use `python -m authwatch` instead; it behaves identically. Every example in this guide works either way.
@@ -91,45 +91,20 @@ authwatch analyze samples/broken.jsonl         # exit 4: six alerts, but six rec
 
 The output of the second run:
 
-```text
-AuthWatch 1.0.0 · analyze attacks.jsonl (jsonl) · sha256 f6c083c3f2bf…
-Records    39 read · 39 events · 0 invalid · 0 unsupported · 0 irrelevant · 0 duplicates dropped
-Coverage   complete · 2026-10-26T10:01:40Z to 2026-10-26T11:15:00Z
-Timeline   6 out-of-order records · largest gap 1050s
-
-  Sev     Rule    Subject              Count  Window  Reason
-  HIGH    AW-004  user:alice               9    900s  success from a new IP after 9 failures
-  MEDIUM  AW-001  ip:203.0.113.50          9    300s  9 failures from one IP
-  MEDIUM  AW-002  user:alice               9    300s  9 failures, 1 source IP(s)
-  MEDIUM  AW-001  ip:192.0.2.99           12    300s  12 failures from one IP
-  MEDIUM  AW-003  ip:192.0.2.99           12    600s  12 distinct accounts failed from one IP
-  MEDIUM  AW-002  user:admin               6    300s  6 failures, 6 source IP(s)
-
-Result     ALERTS DETECTED · 6 alerts · alerts are investigation leads, not proof of compromise
-```
+![authwatch analyze attacks.jsonl](screenshots/analyze.svg)
 
 To read this output:
 
 1. **Header.** The file name, its format, and the start of its SHA-256 fingerprint.
-2. **Records.** How every line was accounted for.
+2. **Records.** How every line was accounted for. Invalid or unsupported counts turn red when they are not zero.
 3. **Coverage.** `complete` means every record was usable. Read this line before anything else.
 4. **Timeline.** Signals about ordering and silent gaps (see [§8.3](#83-timeline-signals)).
-5. **Alert table.** Most severe first, then oldest first.
-6. **Result.** The overall verdict, which matches the exit code.
+5. **Alert table.** Most severe first, then oldest first. The last column is each alert's id, which you pass to `authwatch explain` ([§9](#9-explaining-and-verifying-an-alert)).
+6. **Result banner.** The overall verdict, which matches the exit code.
 
-Now try `broken.jsonl`. It contains the same attacks plus six damaged lines:
+Now try `broken.jsonl`. It contains the same attacks plus six damaged lines. A red **Coverage gaps** panel lists each one with its line number, reason code and what it means:
 
-```text
-Coverage   PARTIAL · invalid_records · 2026-10-26T10:01:40Z to 2026-10-26T11:15:00Z
-  line 40  duplicate_key
-  line 41  invalid_value
-  line 42  schema_invalid:source_ip
-  line 43  schema_invalid:source_ip
-  line 44  schema_invalid:source_ip,unknown_field
-  line 45  invalid_json
-...
-Result     INCOMPLETE · 6 alerts found, but 6 records could not be analyzed — activity may be unseen (exit 4)
-```
+![authwatch analyze broken.jsonl](screenshots/incomplete.svg)
 
 The alerts are still real. The difference is that the absence of *other* alerts no longer means anything, because six records went unexamined.
 
@@ -185,6 +160,8 @@ Any other field makes the record invalid.
 
 ### 4.2 Common mistakes when producing JSONL
 
+`authwatch validate` ([§4.4](#44-checking-a-file-before-analysis-validate)) finds all of these in one pass.
+
 | Mistake | What AuthWatch reports |
 |---|---|
 | A timestamp without a timezone (`2026-10-26T10:30:00`) | `invalid_timestamp` |
@@ -225,7 +202,25 @@ with open(sys.argv[1], newline="", encoding="utf-8") as src, \
 
 Never invent a timezone. If you do not know which timezone the source used, AuthWatch cannot correctly tell which events fall within the same window.
 
-### 4.4 OpenSSH logs (experimental)
+### 4.4 Checking a file before analysis: `validate`
+
+If you are writing a converter, check its output with `validate` before running `analyze`:
+
+```bash
+authwatch validate events.jsonl
+```
+
+![authwatch validate broken.jsonl](screenshots/validate.svg)
+
+`validate` checks the format only; it runs no detection. It reports:
+
+- **Every problem line,** with its reason code and what to fix. Text mode shows the first 50; use `--max-errors N` for more, or `--format json` to get all of them (up to 1 000).
+- **Valid records that will limit analysis:** `outcome: "unknown"`, a `null` timestamp, username or source IP, and a `record_id` repeated with different content. These records pass validation, but `analyze` reports them as coverage gaps.
+- **Normalization warnings,** such as `ip_canonicalized` (for example `::ffff:1.2.3.4` written for `1.2.3.4`) and `username_has_format_or_control_chars`.
+
+It exits `0` when every non-blank line is a valid schema-1.0 event and there is at least one. It exits `4` when any line is invalid or the file has no records, `3` for UTF-16 or binary input, and `2` for a bad path or option.
+
+### 4.5 OpenSSH logs (experimental)
 
 ```bash
 authwatch analyze auth.log --input-format openssh --assume-year 2026 --assume-tz +05:30
@@ -269,7 +264,7 @@ authwatch analyze INPUT [options]
 | `--lookback DUR` | `900s` | How far back AW-004 looks for failures before a success |
 | `--redact-usernames` | off | Replace usernames with tokens in every output (see [§11](#11-privacy-and-handling-reports-safely)) |
 | `--force-report` | off | Allow overwriting an existing file that is not an AuthWatch report |
-| `--input-format`, `--assume-year`, `--assume-tz` | `jsonl` | See [§4.4](#44-openssh-logs-experimental) |
+| `--input-format`, `--assume-year`, `--assume-tz` | `jsonl` | See [§4.5](#45-openssh-logs-experimental) |
 
 Durations are a whole number followed by `s`, `m`, `h` or `d`, e.g. `90s`, `5m`, `1h`, `2d`.
 
@@ -337,6 +332,10 @@ The timeline shows the time span covered, the longest silent gap, and how many r
 ## 7. Investigating each alert type
 
 Each alert in the report has `first_seen`, `last_seen`, `count`, `peak_in_window`, `threshold`, `window_seconds`, a plain-language `description`, `caveats`, and `evidence` (line numbers, top usernames, top source IPs).
+
+`authwatch rules` lists every rule with its defaults, the options that tune it and its MITRE ATT&CK tags (add `--format json` for a machine-readable list):
+
+![authwatch rules](screenshots/rules.svg)
 
 ### AW-004 — Success after repeated failures (HIGH)
 
@@ -429,7 +428,7 @@ The same event can be usable by one rule and not by another. A failure without a
 | `unsupported_sshd_message` | (OpenSSH) an sshd message AuthWatch does not interpret |
 | `repeat_summary` | (OpenSSH) a "message repeated N times" line |
 
-Error entries never repeat the offending value, only its line number. Open the file at that line to see it ([§9](#9-verifying-an-alert-against-the-original-file)). The report keeps the first 1 000 errors; `errors_truncated: true` means there were more, and `summary.errors` gives the total.
+Error entries never repeat the offending value, only its line number. Open the file at that line to see it ([§9](#checking-by-hand)), or run `authwatch validate` on the file ([§4.4](#44-checking-a-file-before-analysis-validate)). The report keeps the first 1 000 errors; `errors_truncated: true` means there were more, and `summary.errors` gives the total.
 
 ### 8.3 Timeline signals
 
@@ -445,39 +444,39 @@ AuthWatch sorts events by time before analysis, so out-of-order input does not c
 
 ---
 
-## 9. Verifying an alert against the original file
+## 9. Explaining and verifying an alert
 
-Every report records the SHA-256 fingerprint of the exact bytes analyzed (`input.sha256`), and every alert lists the input line numbers that support it (`evidence.lines`). Anyone holding the file can check both.
-
-**1. Confirm it is the same file.**
+Every report records the SHA-256 fingerprint of the exact bytes analyzed (`input.sha256`), and every alert lists the input line numbers that support it (`evidence.lines`). `explain` uses both: it re-hashes the original file, refuses to continue if the hash differs, and then shows the alert next to the exact lines that caused it.
 
 ```bash
-sha256sum attacks.jsonl                                  # Linux / macOS
+authwatch analyze attacks.jsonl --report attacks.report.json
+authwatch explain 9e00a620 --report attacks.report.json
+```
+
+![authwatch explain](screenshots/explain.svg)
+
+- **Alert id.** Copy it from the last column of the alert table or from `details.alert_id` in the report. The first 4 or more characters are enough, as long as they match only one alert.
+- **Finding the file.** By default `explain` looks for the analyzed file by its name next to the report, then in the current directory. Point it elsewhere with `--input PATH`. It never follows a path stored in the report, because reports record only the file's base name.
+- **The hash check.** If the file has changed by even one byte, or is a different file, `explain` stops with `sha256 mismatch … refusing to show evidence` (exit `4`). This is deliberate: evidence from the wrong file would be misleading.
+- **What is shown.** For JSONL input, the key fields of each line (timestamp, outcome, username, source IP, port). `--raw` shows each line in full; OpenSSH lines are always shown in full. For AW-004 the successful login is highlighted after the failures.
+- **Machine output.** `--format json` returns the alert, the verification result and every line's text.
+- **Redacted reports.** If the report was made with `--redact-usernames`, `explain` warns you: the evidence comes from the original file and shows real usernames.
+
+For episodes longer than 50 events, the report keeps only the first 25 and last 25 line numbers (`lines_truncated: true`), and `explain` says so under the table.
+
+### Checking by hand
+
+You can verify the same things without AuthWatch:
+
+```bash
+sha256sum attacks.jsonl                    # Linux / macOS: must equal input.sha256
+sed -n '10p' attacks.jsonl                 # print line 10
 ```
 
 ```powershell
 (Get-FileHash attacks.jsonl -Algorithm SHA256).Hash.ToLower()   # Windows
+(Get-Content attacks.jsonl)[9]                                  # line 10 (arrays start at 0)
 ```
-
-The result must equal `input.sha256` in the report.
-
-**2. Look at the cited lines.** For example, line 10:
-
-```bash
-sed -n '10p' attacks.jsonl
-```
-
-```powershell
-(Get-Content attacks.jsonl)[9]          # PowerShell arrays start at 0
-```
-
-**3. List each alert's lines from the report.**
-
-```bash
-python -c "import json;r=json.load(open('report.json'));[print(f['event'],f['subject'],f['details']['evidence']['lines']) for f in r['findings']]"
-```
-
-For episodes longer than 50 events, `evidence.lines` holds the first 25 and last 25 lines, and `lines_truncated` is `true`.
 
 ---
 
@@ -566,6 +565,34 @@ switch ($LASTEXITCODE) {
 - **Reproducibility.** The same input and parameters produce an identical report except for `envelope.run_id`, `started_at` and `completed_at`. Alert ids are stable, so you can track an alert across runs. This does not hold with an ephemeral redaction key.
 - **Integrations.** The report uses the shared `7d7b-report` envelope (`envelope`, `status`, `summary`, `findings[]`, `errors[]`), so other tools in the series can read it without special handling.
 
+### Daily runs: comparing reports with `diff`
+
+Run `analyze` on a schedule, keep each report, and compare the latest one with the previous one:
+
+```bash
+authwatch analyze auth-today.jsonl --report today.json
+authwatch diff yesterday.json today.json
+```
+
+![authwatch diff](screenshots/diff.svg)
+
+Alerts are matched by alert id. An alert id is a hash of the rule, the subject, the episode's first-seen time and the thresholds, so the same episode keeps its id from one run to the next even when more events arrive.
+
+| Section | Meaning |
+|---|---|
+| **new** | In the newer report only. Review these first |
+| **ongoing** | In both. The count shows growth, e.g. `6 → 9` |
+| **no longer reported** | In the older report only. Usually the activity is outside the newer file's time range. It does **not** mean the threat was fixed |
+
+`diff` warns you when the comparison is weak:
+
+- the runs used different rules, thresholds, windows or redaction (ids are then not comparable);
+- a run used an ephemeral redaction key (set `AUTHWATCH_REDACT_KEY` for stable ids);
+- either run was incomplete;
+- both runs analyzed the same file.
+
+It exits `0` with no new alerts, `1` when there are new alerts, `4` when either report was incomplete (a missing alert may simply not have been seen), and `2` when a file is not an AuthWatch report. `--format json` gives the same result as data.
+
 **Useful queries:**
 
 ```bash
@@ -611,11 +638,15 @@ Any cell that a spreadsheet could treat as a formula is prefixed with `'`. This 
 | `error: --fail-threshold must be between 2 and 100000` (and similar) | 2 | Stay within the bounds in [§5](#5-running-an-analysis) |
 | `error: lookback must be at least the fail window` | 2 | Increase `--lookback` or reduce `--fail-window` |
 | `error: unknown rule id in --rules …` | 2 | Use `AW-001`…`AW-004`, upper case, comma-separated |
-| `error: classic syslog timestamps have no year or timezone; pass --assume-year and --assume-tz` | 2 | Add both options ([§4.4](#44-openssh-logs-experimental)) |
+| `error: classic syslog timestamps have no year or timezone; pass --assume-year and --assume-tz` | 2 | Add both options ([§4.5](#45-openssh-logs-experimental)) |
 | `error: --assume-tz must be Z, UTC or a fixed offset …` | 2 | Use `+05:30`, not a zone name |
 | `error: AUTHWATCH_REDACT_KEY must be at least 32 bytes` | 2 | Use a longer key, or unset the variable for an ephemeral one |
 | `error: cannot open input` / `error while reading input` | 4 | Permissions, or the file is locked by another program |
 | `error: cannot write output` | 4 | Disk full, no permission, or (Windows) the file is open in another program. The previous file is left intact |
+| `error: report not found` / `not an AuthWatch report` / `AuthWatch report is malformed` | 2 | `explain` or `diff` was given a file that is not a report written by `analyze --report` |
+| `error: no alert with id … in this report` / `alert id prefix … matches N alerts` | 2 | Copy the id from the alert table; give more characters if a prefix is ambiguous |
+| `error: cannot find the analyzed file next to the report or in the current directory; pass --input PATH` | 2 | Tell `explain` where the original file is |
+| `error: sha256 mismatch: … refusing to show evidence` | 4 | The file changed since the report was made, or it is a different file. Find the original; never edit evidence |
 | `internal error: …` | 4 | A bug. Please report it with the command used; the input is not needed |
 
 **Other common problems:**
@@ -632,13 +663,13 @@ Each claim below can be checked by running the commands listed against it.
 
 | Claim | How to check |
 |---|---|
-| The tool installs cleanly and reports its version | Fresh virtual environment, `pip install .`, `authwatch --version` → `authwatch 1.0.0` |
+| The tool installs cleanly and reports its version | Fresh virtual environment, `pip install .`, `authwatch --version` → `authwatch 1.1.0` |
 | All tests pass | `python -m pytest -q -rs`; skips are listed with their reasons (symlink tests need Windows Developer Mode; a POSIX-permission test is skipped on Windows) |
 | The window logic is correct | `pytest tests/test_window_oracle.py -v`. The engine is compared with a deliberately simple brute-force reference on 3 000 random streams per rule, with memory sweeping at its default, at every event, and disabled |
 | The sample results match the specification | `authwatch analyze samples/attacks.jsonl --report r.json` gives exactly the six alerts shown in [§3](#3-a-five-minute-walkthrough), pinned by `tests/test_cli.py`; `dave`'s five failures, spanning exactly 300 s, must **not** alert |
 | A partial analysis is never reported as clean | `authwatch analyze samples/broken.jsonl` → exit 4. An empty file → exit 4 with `no_events` |
 | Results are deterministic | Run twice with `--report`; the files differ only in `run_id`, `started_at` and `completed_at` |
-| Evidence is verifiable | Follow [§9](#9-verifying-an-alert-against-the-original-file) on any alert |
+| Evidence is verifiable | `authwatch explain <id> --report r.json` on any alert; then change one byte of the input and run it again → exit 4, `sha256 mismatch` ([§9](#9-explaining-and-verifying-an-alert)) |
 | Untrusted text cannot manipulate the terminal | Put a username such as `[red]x\u001b[2J:smile:` in a test file; it is shown literally, with the escape character spelled out |
 | The input is never modified | Use `--report` pointing at the input or at a hard link to it → exit 2, and the input is byte-identical afterwards |
 | The fixtures are reproducible | `python samples/make_samples.py some_dir` produces byte-identical copies of the committed samples |
@@ -674,11 +705,19 @@ authwatch analyze INPUT [--report r.json] [--format text|json] [--csv a.csv]
 
 authwatch normalize INPUT --output events.jsonl [--input-format ...] [--assume-year ...]
                           [--assume-tz ...] [--redact-usernames] [--force-report]
+
+authwatch explain ALERT_ID --report r.json [--input PATH] [--raw] [--format text|json]
+authwatch diff OLD.json NEW.json [--format text|json]
+authwatch validate FILE.jsonl [--max-errors 50] [--format text|json]
+authwatch rules [--format text|json]
 ```
 
 | Exit | 0 | 1 | 2 | 3 | 4 | 130 |
 |---|---|---|---|---|---|---|
-| Meaning | complete, no alerts | complete, alerts | bad command / path | unusable input | incomplete or failed | interrupted |
+| `analyze` | complete, no alerts | complete, alerts | bad command / path | unusable input | incomplete or failed | interrupted |
+| `explain` | shown and verified | — | bad id, report or path | — | hash mismatch, unreadable | interrupted |
+| `diff` | no new alerts | new alerts | not a report | — | a run was incomplete | interrupted |
+| `validate` | every record valid | — | bad path or option | UTF-16 / binary | invalid lines or no records | interrupted |
 
 **Triage order:** exit code → coverage → alerts (HIGH first) → timeline → verify evidence against the file hash.
 

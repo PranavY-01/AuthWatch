@@ -22,5 +22,16 @@ echo "### broken.jsonl (expect exit 4)"
 "$PY" -m authwatch analyze "$WORK/samples/broken.jsonl"
 echo "exit $?"
 echo
+echo "### explain the AW-004 alert (expect exit 0)"
+"$PY" -m authwatch explain 9e00a620 --report "$WORK/out/report.json" --input "$WORK/samples/attacks.jsonl"
+echo "exit $?"
+echo
+echo "### validate broken.jsonl (expect exit 4)"
+"$PY" -m authwatch validate "$WORK/samples/broken.jsonl"
+echo "exit $?"
+echo
+echo "### rules"
+"$PY" -m authwatch rules
+echo
 echo "### attacks.jsonl as JSON (first lines)"
 "$PY" -m authwatch analyze "$WORK/samples/attacks.jsonl" --format json | "$PY" -m json.tool | head -n 20

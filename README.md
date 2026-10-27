@@ -42,7 +42,7 @@ AuthWatch gives a repeatable, explainable answer and states the limits of that a
 
 ## Features and non-goals
 
-**Built (v1.0.0):**
+**Built (v1.1.0):**
 
 - Bytes-level JSONL reader that withstands hostile input:
   - splits on `\n` only;
@@ -58,7 +58,12 @@ AuthWatch gives a repeatable, explainable answer and states the limits of that a
 - Four rules, AW-001 to AW-004, over a sliding window `(t − W, t]`. Each sustained burst produces one alert.
 - Honest coverage accounting. `status` is derived from `result` and `coverage`, and partial coverage exits `4`, never `0`.
 - JSON report in the shared `7d7b-report` envelope. It records the input SHA-256, the parameters, per-rule coverage, line-number evidence and deterministic alert ids.
-- Terminal summary in which every untrusted string is escaped.
+- A colourful terminal interface (panels, tables, severity and status badges) in which every untrusted string is still escaped.
+- Inspection commands:
+  - `explain` shows one alert with its evidence lines, pulled from the original file after re-checking its SHA-256;
+  - `diff` compares two runs into new, ongoing and no-longer-reported alerts;
+  - `validate` checks a JSONL file against the schema and lists every problem line;
+  - `rules` lists the rules with their defaults and ATT&CK tags.
 - Output-path safety. AuthWatch refuses to write over the input (including a hard link to it), a directory, a symlink or a foreign file, and all writes are atomic.
 - `--rules` selection, `--redact-usernames`, a timeline block, and MITRE ATT&CK tags.
 - An **experimental** OpenSSH text adapter and a `normalize` command.
@@ -121,6 +126,10 @@ authwatch analyze samples/clean.jsonl                              # exit 0
 authwatch analyze samples/attacks.jsonl --report out/report.json   # exit 1
 authwatch analyze samples/broken.jsonl                             # exit 4
 authwatch analyze samples/attacks.jsonl --format json | python -m json.tool
+
+authwatch explain 9e00a620 --report out/report.json --input samples/attacks.jsonl   # AW-004 + evidence
+authwatch validate samples/broken.jsonl               # exit 4: six problem lines, with fixes
+authwatch rules                                        # the rule catalogue
 ```
 
 The demos `examples/demo.sh` (bash) and `examples/demo.ps1` (PowerShell) run all of these in a working directory of your choice. `examples/sample-report.json` was produced by a real run on `samples/attacks.jsonl`.
@@ -136,7 +145,21 @@ authwatch analyze INPUT
 
 authwatch normalize INPUT --output PATH
     [--input-format ...] [--assume-year ...] [--assume-tz ...] [--redact-usernames] [--force-report]
+
+authwatch explain ALERT_ID --report REPORT [--input PATH] [--raw] [--format text|json]
+authwatch diff OLD_REPORT NEW_REPORT [--format text|json]
+authwatch validate FILE [--max-errors N] [--format text|json]
+authwatch rules [--format text|json]
 ```
+
+| Command | What it is for |
+|---|---|
+| `analyze` | Run the detection rules and write the report |
+| `normalize` | Turn input (e.g. OpenSSH logs) into schema-1.0 JSONL |
+| `explain` | Show one alert and the exact lines behind it. It re-hashes the original file first and refuses (exit 4) if the file is not the one the report analyzed. The alert id can be shortened to its first 4+ characters |
+| `diff` | Compare two reports, e.g. yesterday's and today's: **new**, **ongoing** (with count growth) and **no longer reported** alerts, matched by alert id. It warns when the runs are not comparable |
+| `validate` | Check a JSONL file's format without running detection: every problem line with a fix hint, plus valid records that would limit analysis |
+| `rules` | List the rules, their defaults, the options that tune them and their ATT&CK tags |
 
 `DUR` is an integer followed by `s`, `m`, `h` or `d` (`300s`, `5m`, `1h`, `2d`).
 
@@ -227,68 +250,40 @@ If an attacker causes records to be rejected, the cost is a loud `incomplete` ru
 
 ## Example output
 
-All output below is copied from real runs of `examples/demo.sh` on the committed samples.
+These screenshots are recorded from real runs on the committed samples (`docs/screenshots/`). The terminal colours appear in any modern terminal; when output is piped, the same layout is printed without colour.
 
-Clean run, exit 0:
+**Alerts** (`authwatch analyze samples/attacks.jsonl`, exit 1):
 
-```text
-AuthWatch 1.0.0 · analyze clean.jsonl (jsonl) · sha256 0704984f4c8f…
-Records    6 read · 6 events · 0 invalid · 0 unsupported · 0 irrelevant · 0 duplicates dropped
-Coverage   complete · 2026-10-26T10:01:40Z to 2026-10-26T10:21:40Z
-Timeline   0 out-of-order records · largest gap 400s
-Result     CLEAN · 6 events analyzed, no rule fired · this does not prove the system is secure
-Note       alerts are investigation leads, not proof of compromise
-```
+![authwatch analyze attacks.jsonl](docs/screenshots/analyze.svg)
 
-Alerts, exit 1:
+**Incomplete** (`authwatch analyze samples/broken.jsonl`, exit 4). The same six alerts are still reported, and every unreadable line is listed with its reason:
 
-```text
-AuthWatch 1.0.0 · analyze attacks.jsonl (jsonl) · sha256 f6c083c3f2bf…
-Records    39 read · 39 events · 0 invalid · 0 unsupported · 0 irrelevant · 0 duplicates dropped
-Coverage   complete · 2026-10-26T10:01:40Z to 2026-10-26T11:15:00Z
-Timeline   6 out-of-order records · largest gap 1050s
+![authwatch analyze broken.jsonl](docs/screenshots/incomplete.svg)
 
-  Sev     Rule    Subject              Count  Window  Reason
-  HIGH    AW-004  user:alice               9    900s  success from a new IP after 9 failures
-  MEDIUM  AW-001  ip:203.0.113.50          9    300s  9 failures from one IP
-  MEDIUM  AW-002  user:alice               9    300s  9 failures, 1 source IP(s)
-  MEDIUM  AW-001  ip:192.0.2.99           12    300s  12 failures from one IP
-  MEDIUM  AW-003  ip:192.0.2.99           12    600s  12 distinct accounts failed from one IP
-  MEDIUM  AW-002  user:admin               6    300s  6 failures, 6 source IP(s)
+**Explaining an alert** (`authwatch explain 9e00a620 --report report.json`, exit 0). The evidence comes from the original file, after checking its SHA-256 against the report:
 
-Result     ALERTS DETECTED · 6 alerts · alerts are investigation leads, not proof of compromise
-```
+![authwatch explain](docs/screenshots/explain.svg)
 
-Incomplete run, exit 4. The same six alerts are still reported:
+**Comparing two runs** (`authwatch diff day1.json day2.json`, exit 1 because there are new alerts):
 
-```text
-AuthWatch 1.0.0 · analyze broken.jsonl (jsonl) · sha256 d5e8f1c2698e…
-Records    45 read · 39 events · 6 invalid · 0 unsupported · 0 irrelevant · 0 duplicates dropped
-Coverage   PARTIAL · invalid_records · 2026-10-26T10:01:40Z to 2026-10-26T11:15:00Z
-  line 40  duplicate_key
-  line 41  invalid_value
-  line 42  schema_invalid:source_ip
-  line 43  schema_invalid:source_ip
-  line 44  schema_invalid:source_ip,unknown_field
-  line 45  invalid_json
-Timeline   6 out-of-order records · largest gap 1050s
-  …
-Result     INCOMPLETE · 6 alerts found, but 6 records could not be analyzed — activity may be unseen (exit 4)
-Note       alerts are investigation leads, not proof of compromise
-```
+![authwatch diff](docs/screenshots/diff.svg)
 
-An empty file is never clean (exit 4):
+**Validating a converter's output** (`authwatch validate samples/broken.jsonl`, exit 4):
 
-```text
-Coverage   PARTIAL · no_events
-Result     INCOMPLETE · no alerts in the analyzable data — this is NOT a clean result (exit 4)
-```
+![authwatch validate](docs/screenshots/validate.svg)
+
+**The rule catalogue** (`authwatch rules`):
+
+![authwatch rules](docs/screenshots/rules.svg)
+
+An empty file is never clean: it exits 4 with `no_events` and the banner *"no alerts in the analyzable data — this is NOT a clean result"*.
 
 Fatal errors go to stderr and write no report:
 
 ```text
 error: input starts with a UTF-16/UTF-32 byte-order mark; re-save it as UTF-8 (in PowerShell 5.1 use Out-File -Encoding utf8)      ← exit 3
 error: refusing to write over the input file: samples\attacks.jsonl                                                                   ← exit 2
+error: sha256 mismatch: attacks.jsonl is not the file this report analyzed (it changed, or it is a different file); refusing to show evidence   ← exit 4
 ```
 
 Error messages name the line and a stable reason code. They never echo the offending value.
@@ -331,6 +326,15 @@ The same input and parameters produce a byte-identical report except for `run_id
 
 Fatal outcomes (2, 3, a fatal 4, 130) write no report and print nothing on stdout in `--format json` mode. A non-fatal 4 (partial coverage) still writes the full report.
 
+The other commands follow the same scheme:
+
+| Command | 0 | 1 | 2 | 3 | 4 |
+|---|---|---|---|---|---|
+| `explain` | shown and verified | — | bad id, report or path | — | hash mismatch or unreadable file |
+| `diff` | no new alerts | new alerts | not an AuthWatch report | — | either run was incomplete |
+| `validate` | every record valid | — | bad path or option | UTF-16 / binary | invalid lines, or no records |
+| `rules` | listed | — | — | — | — |
+
 ## Privacy
 
 > **Failed-login usernames can contain passwords.** People routinely type their password into the username field, so a list of failed usernames can be a list of credentials.
@@ -343,7 +347,7 @@ Fatal outcomes (2, 3, a fatal 4, 130) write no report and print nothing on stdou
 
 ## Windows notes
 
-Windows is the primary development platform, and v1.0.0 was built and tested on Windows 11.
+Windows is the primary development platform, and AuthWatch was built and tested on Windows 11.
 
 - **Encoding.** Inputs are read as bytes, and every file AuthWatch writes is UTF-8 or ASCII with LF line endings.
 - **PowerShell 5.1.** `>` and `Out-File` write UTF-16, which AuthWatch rejects with exit 3 and a hint. Use `Out-File -Encoding utf8` instead; the BOM it adds is accepted. Setting `$env:PYTHONUTF8 = "1"` (or `chcp 65001`) is recommended.
@@ -359,7 +363,7 @@ Windows is the primary development platform, and v1.0.0 was built and tested on 
 python -m pytest -q
 ```
 
-The suite (295 passed, 3 skipped on Windows 11 / Python 3.12) includes:
+The suite (323 passed, 3 skipped on Windows 11 / Python 3.12) includes:
 
 - **Brute-force oracles** for the window engine. An O(n²) reference written from the definition recomputes every window from scratch and is compared with the engine on 3 000 seeded random streams, for the count metric, the distinct-account metric and AW-004. Each comparison runs with sweeping at its default, at every event, and disabled. There were 0 mismatches.
 - Shuffle invariance and username-spelling invariance on the fixtures.
